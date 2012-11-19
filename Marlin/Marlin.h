@@ -157,7 +157,8 @@ void FlushSerialRequestResend();
 void ClearToSend();
 
 void get_coordinates();
-void prepare_move();
+void prepare_scara_move();
+void prepare_cartesian_move();
 void kill();
 void Stop();
 
