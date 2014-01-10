@@ -43,7 +43,7 @@
 // 91 = Final OMCA board
 
 #ifndef MOTHERBOARD
-#define MOTHERBOARD 5
+#define MOTHERBOARD 33
 #endif
 
 
@@ -372,3 +372,5 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #include "thermistortables.h"
 
 #endif //__CONFIGURATION_H
+
+
