@@ -72,7 +72,7 @@
 // 52 is 200k thermistor - ATC Semitec 204GT-2 (1k pullup)
 // 55 is 100k thermistor - ATC Semitec 104GT-2 (Used in ParCan) (1k pullup)
 
-#define TEMP_SENSOR_0 1
+#define TEMP_SENSOR_0 7
 #define TEMP_SENSOR_1 0
 #define TEMP_SENSOR_2 0
 #define TEMP_SENSOR_BED 0
@@ -175,7 +175,7 @@
 //if PREVENT_DANGEROUS_EXTRUDE is on, you can still disable (uncomment) very long bits of extrusion separately.
 #define PREVENT_LENGTHY_EXTRUDE
 
-#define EXTRUDE_MINTEMP 170
+#define EXTRUDE_MINTEMP 160
 #define EXTRUDE_MAXLENGTH (X_MAX_LENGTH+Y_MAX_LENGTH) //prevent extrusion of very large distances.
 
 //===========================================================================
@@ -209,7 +209,7 @@
 
 // The pullups are needed if you directly connect a mechanical endswitch between the signal and ground pins.
 const bool X_ENDSTOPS_INVERTING = true; // set to true to invert the logic of the endstops. 
-const bool Y_ENDSTOPS_INVERTING = true; // set to true to invert the logic of the endstops. 
+const bool Y_ENDSTOPS_INVERTING = false; // set to true to invert the logic of the endstops. 
 const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of the endstops. 
 //#define DISABLE_MAX_ENDSTOPS
 
@@ -222,12 +222,12 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 // Disables axis when it's not being used.
 #define DISABLE_X false
 #define DISABLE_Y false
-#define DISABLE_Z false
+#define DISABLE_Z true
 #define DISABLE_E false // For all extruders
 
 #define INVERT_X_DIR true    // for Mendel set to false, for Orca set to true
 #define INVERT_Y_DIR true    // for Mendel set to true, for Orca set to false
-#define INVERT_Z_DIR false     // for Mendel set to false, for Orca set to true
+#define INVERT_Z_DIR true     // for Mendel set to false, for Orca set to true
 #define INVERT_E0_DIR false   // for direct drive extruder v9 set to true, for geared extruder set to false
 #define INVERT_E1_DIR false    // for direct drive extruder v9 set to true, for geared extruder set to false
 #define INVERT_E2_DIR false   // for direct drive extruder v9 set to true, for geared extruder set to false
@@ -235,11 +235,11 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 // ENDSTOP SETTINGS:
 // Sets direction of endstops when homing; 1=MAX, -1=MIN
 #define X_HOME_DIR -1
-#define Y_HOME_DIR -1
+#define Y_HOME_DIR 1
 #define Z_HOME_DIR -1
 
-#define min_software_endstops true //If true, axis won't move to coordinates less than HOME_POS.
-#define max_software_endstops true  //If true, axis won't move to coordinates greater than the defined lengths below.
+#define min_software_endstops false //If true, axis won't move to coordinates less than HOME_POS.
+#define max_software_endstops false  //If true, axis won't move to coordinates greater than the defined lengths below.
 // Travel limits after homing
 #define X_MAX_POS 200.0
 #define X_MIN_POS 0.0
@@ -285,11 +285,12 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 
 //// MOVEMENT SETTINGS
 #define NUM_AXIS 4 // The axis order in all axis related arrays is X, Y, Z, E
-#define HOMING_FEEDRATE {4*60, 4*60, 4*60, 0}  // set the homing speeds (mm/min)
+#define HOMING_FEEDRATE {4*40, 4*40, 4*40, 0}  // set the homing speeds (mm/min)
 
 // default settings 
 
-#define DEFAULT_AXIS_STEPS_PER_UNIT   {1600.0*25.0/360.0, 1600.0*25.0/360.0, 200*8/1.25, 385}
+#define DEFAULT_AXIS_STEPS_PER_UNIT   {1600.0*25.0/360.0, 1600.0*25.0/360.0, 5120, 385}	// X and Y appear to be in steps/degree
+// Z Axis: 200 steps * (36 teeth / 18 teeth) * (1 rev / 0.00125 meters) * 16 = 5120 steps/mm
 #define DEFAULT_MAX_FEEDRATE          {50, 50, 5, 45}    // (mm/sec)    
 #define DEFAULT_MAX_ACCELERATION      {1000, 1000, 1000, 10000}    // X, Y, Z, E maximum start speed for accelerated moves. E default values are good for skeinforge 40+, for older versions raise them a lot.
 
