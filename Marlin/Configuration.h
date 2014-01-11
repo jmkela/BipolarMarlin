@@ -241,9 +241,9 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define min_software_endstops false //If true, axis won't move to coordinates less than HOME_POS.
 #define max_software_endstops false  //If true, axis won't move to coordinates greater than the defined lengths below.
 // Travel limits after homing
-#define X_MAX_POS 200.0
-#define X_MIN_POS 0.0
-#define Y_MAX_POS 120.0
+#define X_MAX_POS 200.0 // X limits are meaningless
+#define X_MIN_POS 0
+#define Y_MAX_POS 47.4
 #define Y_MIN_POS 0.0
 #define Z_MAX_POS 100.0
 #define Z_MIN_POS 0.0
@@ -261,30 +261,11 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define MANUAL_Y_HOME_POS 0
 #define MANUAL_Z_HOME_POS 0
 
-//// SCARA settings
-
-// Arm segment lengths
-#define SCARA_SEG1_LEN 100.0
-#define SCARA_SEG2_LEN 150.0
-
-// Rotation axis Y position
-#define SCARA_AXIS_Y -82.0
-
-// Arm base axis separation
-#define SCARA_AXIS_SPACING 75.0
-
-// Arm base coordinates
-#define SCARA_ARM1_X ((X_MAX_POS - X_MIN_POS)/2 - SCARA_AXIS_SPACING/2)
-#define SCARA_ARM1_Y SCARA_AXIS_Y
-#define SCARA_ARM2_X ((X_MAX_POS - X_MIN_POS)/2 + SCARA_AXIS_SPACING/2)
-#define SCARA_ARM2_Y SCARA_AXIS_Y
-
+//// BIPOLAR SETTINGS
+#define BIPOLAR_RADIUS 160
 // Cartesian movement is divided into segments at most this long (in mm)
 // before being mapped into scara coordinates.
 #define SCARA_MOVE_APPROX_LEN 1.0
-
-//// BIPOLAR SETTINGS
-#define BIPOLAR_RADIUS 160
 
 //// MOVEMENT SETTINGS
 #define NUM_AXIS 4 // The axis order in all axis related arrays is θ₁, θ₂, Z, E
@@ -298,7 +279,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 // θ₂ Axis: 200 steps * 16 microsteps/step * (450 teeth / 18 teeth) / 360 degrees = 222.222 steps/degree
 // Z Axis: 200 steps * 16 microsteps/step * (36 teeth / 18 teeth) / 1.25 mm = 5120 steps/mm
 // E Axis: 200 steps * 16 microsteps/step * (47 teeth / 9 teeth) / 8*pi mm = 664.914 steps/mm
-#define DEFAULT_MAX_FEEDRATE          {50, 50, 1.3, 45}    // (mm/sec)    
+#define DEFAULT_MAX_FEEDRATE          {50, 50, 1.3, 45}    // degrees/sec and mm/sec
 #define DEFAULT_MAX_ACCELERATION      {1000, 1000, 1000, 10000}    // X, Y, Z, E maximum start speed for accelerated moves. E default values are good for skeinforge 40+, for older versions raise them a lot.
 
 #define DEFAULT_ACCELERATION          3000    // X, Y, Z and E max acceleration in mm/s^2 for printing moves 
