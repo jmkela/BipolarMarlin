@@ -9,7 +9,7 @@
 //Implementation of an idea by Prof Braino to inform user that any changes made
 //to this build by the user have been successfully uploaded into firmware.
 #define STRING_VERSION_CONFIG_H __DATE__ " " __TIME__ // build date and time
-#define STRING_CONFIG_H_AUTHOR "ttsalo" //Who made the changes.
+#define STRING_CONFIG_H_AUTHOR "unlimitedbacon" //Who made the changes.
 
 // SERIAL_PORT selects which serial port should be used for communication with the host.
 // This allows the connection of wireless adapters (for instance) to non-default port pins.
@@ -225,7 +225,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define DISABLE_Z true
 #define DISABLE_E false // For all extruders
 
-#define INVERT_X_DIR true    // for Mendel set to false, for Orca set to true
+#define INVERT_X_DIR false    // for Mendel set to false, for Orca set to true
 #define INVERT_Y_DIR true    // for Mendel set to true, for Orca set to false
 #define INVERT_Z_DIR true     // for Mendel set to false, for Orca set to true
 #define INVERT_E0_DIR false   // for direct drive extruder v9 set to true, for geared extruder set to false
@@ -283,15 +283,22 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 // before being mapped into scara coordinates.
 #define SCARA_MOVE_APPROX_LEN 1.0
 
+//// BIPOLAR SETTINGS
+#define BIPOLAR_RADIUS 160
+
 //// MOVEMENT SETTINGS
-#define NUM_AXIS 4 // The axis order in all axis related arrays is X, Y, Z, E
-#define HOMING_FEEDRATE {4*40, 4*40, 4*40, 0}  // set the homing speeds (mm/min)
+#define NUM_AXIS 4 // The axis order in all axis related arrays is θ₁, θ₂, Z, E
+#define HOMING_FEEDRATE {4*60, 4*60, 4*60, 0}  // set the homing speeds (mm/min)
 
 // default settings 
 
-#define DEFAULT_AXIS_STEPS_PER_UNIT   {1600.0*25.0/360.0, 1600.0*25.0/360.0, 5120, 385}	// X and Y appear to be in steps/degree
-// Z Axis: 200 steps * (36 teeth / 18 teeth) * (1 rev / 0.00125 meters) * 16 = 5120 steps/mm
-#define DEFAULT_MAX_FEEDRATE          {50, 50, 5, 45}    // (mm/sec)    
+// Units are degrees for θ₁,θ₂ and mm for Z,E
+#define DEFAULT_AXIS_STEPS_PER_UNIT   {190.123, 222.222, 5120, 664.914}
+// θ₁ Axis: 200 steps * 16 microsteps/step * (385 teeth / 18 teeth) / 360 degrees = 190.123 steps/degree
+// θ₂ Axis: 200 steps * 16 microsteps/step * (450 teeth / 18 teeth) / 360 degrees = 222.222 steps/degree
+// Z Axis: 200 steps * 16 microsteps/step * (36 teeth / 18 teeth) / 1.25 mm = 5120 steps/mm
+// E Axis: 200 steps * 16 microsteps/step * (47 teeth / 9 teeth) / 8*pi mm = 664.914 steps/mm
+#define DEFAULT_MAX_FEEDRATE          {50, 50, 1.3, 45}    // (mm/sec)    
 #define DEFAULT_MAX_ACCELERATION      {1000, 1000, 1000, 10000}    // X, Y, Z, E maximum start speed for accelerated moves. E default values are good for skeinforge 40+, for older versions raise them a lot.
 
 #define DEFAULT_ACCELERATION          3000    // X, Y, Z and E max acceleration in mm/s^2 for printing moves 

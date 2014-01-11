@@ -40,7 +40,7 @@
 #include "language.h"
 #include "pins_arduino.h"
 
-#define VERSION_STRING  "1.0.0 SCARA"
+#define VERSION_STRING  "1.0.0 BIPOLAR"
 
 // look here for descriptions of gcodes: http://linuxcnc.org/handbook/gcode/g-code.html
 // http://objects.reprap.org/wiki/Mendel_User_Manual:_RepRapGCodes
@@ -57,9 +57,9 @@
 // G28 - Home all Axis
 // G90 - Use Absolute Coordinates
 // G91 - Use Relative Coordinates
-// G92 - Set current position to cordinates given (in raw SCARA coordinates)
-// G93 - SCARA coordinate mapping on (default)
-// G94 - SCARA coordinate mapping (and soft limits) off (raw mode)
+// G92 - Set current position to cordinates given (in raw bipolar coordinates)
+// G93 - Bipolar coordinate mapping on (default)
+// G94 - Bipolar coordinate mapping (and soft limits) off (raw mode)
 
 //RepRap M Codes
 // M0   - Unconditional stop - Wait for user to press a button on the LCD (Only if ULTRA_LCD is enabled)
@@ -1690,40 +1690,35 @@ void clamp_to_software_endstops(float target[3])
    deviation. If it's over a configured threshold, split the move into
    two segments do the same to those recursively. (Fancy, doesn't
    do unnecessary splits.)
+
+   3. Calculate the time of each motor step based on the ideal
+   formula for a straight line in bipolar space.
 */
 
-/* Calculate the arm first segment rotation to reach the target
-   point. Returns clockwise rotation away from the Y-axis in
-   degrees. */
-float calculate_arm_rotation(float x, float y, int arm_num)
+/* Convert a set of cartesian coordinates (in mm) to bipolar coordinates
+   (in degrees). */
+void cart2bipol(float x, float y, float* theta1, float* theta2)
 {
-  float rot;
-
-  // Calculate the first arm segment rotation away from the line between the 
-  // base axis and target point.
-  rot = acos((SCARA_SEG1_LEN*SCARA_SEG1_LEN - SCARA_SEG2_LEN*SCARA_SEG2_LEN 
-              + (x*x + y*y)) / (2 * sqrt(x*x + y*y)) 
-             / SCARA_SEG1_LEN) * 180 / M_PI;
-
-  // From the relative rotation, calculate absolute rotation, taking the
-  // arm number into account to get the elbow rotation on the correct side.
-  return -((arm_num == 1) 
-           ? (atan2(y, x) * 180 / M_PI + rot - 90)
-           : (atan2(y, x) * 180 / M_PI - rot - 90));
+  *theta2 = 2 * asin( sqrt(x*x+y*y) / (2*BIPOLAR_RADIUS) );
+  *theta1 = (M_PI-*theta2)/2 - atan2(y,x);
+  //Convert from radians to degrees
+  *theta2 = *theta2 * (180.0/M_PI);
+  *theta1 = *theta1 * (180.0/M_PI);
 }
 
 /* Split the move into small segments and convert each to SCARA coordinates
    individually. Segment maximum length is defined in Configuration.h */
 void prepare_scara_move()
 {
-  float arm1, arm2, distXY, deltaX, deltaY, deltaZ, deltaE,
-    steplen, x, y, z, step;
+  float theta1, theta2, distXY, deltaX, deltaY, deltaZ, deltaE,
+    steplen, x, y, z, e, step;
   int steps, i;
 
   clamp_to_software_endstops(destination);
 
   previous_millis_cmd = millis();
 
+  // Compute cartesian distance
   deltaX = destination[X_AXIS] - current_position[X_AXIS];
   deltaY = destination[Y_AXIS] - current_position[Y_AXIS];
   deltaZ = destination[Z_AXIS] - current_position[Z_AXIS];
@@ -1731,36 +1726,40 @@ void prepare_scara_move()
   
   distXY = sqrt(deltaX*deltaX + deltaY*deltaY);
 
+  // Find number of segments in move
   steps = ceil(distXY / SCARA_MOVE_APPROX_LEN);
   if (steps < 1)
     steps = 1;
 
-  //SERIAL_ECHOPGM("distXY="); SERIAL_ECHOLN(distXY);
-  //SERIAL_ECHOPGM("steps="); SERIAL_ECHOLN(steps);
+  //SERIAL_ECHOPGM("CartDist="); SERIAL_ECHOLN(distXY);
+  //SERIAL_ECHOPGM("Segments="); SERIAL_ECHOLN(steps);
 
-  for (i = 1; i <= steps; i++) {
+  for (i = 1; i <= steps; i++) { // For each segment
+    // Find target coordinates for end of segment
     step = (float)i / ((float)steps);
     x = current_position[X_AXIS] + deltaX * step;
     y = current_position[Y_AXIS] + deltaY * step;
     z = current_position[Z_AXIS] + deltaZ * step;
+    e = current_position[E_AXIS] + deltaE * step;
     
-    arm1 = calculate_arm_rotation(x - SCARA_ARM1_X, y - SCARA_ARM1_Y, 1);
-    arm2 = calculate_arm_rotation(x - SCARA_ARM2_X, y - SCARA_ARM2_Y, 2);
+    // Convert target coordinates to bipolar coordinates
+    cart2bipol( x, y, &theta1, &theta2 );
 
     //SERIAL_ECHOPGM("step="); SERIAL_ECHOLN(step);
-    //SERIAL_ECHOPGM("arm1="); SERIAL_ECHOLN(arm1);
-    //SERIAL_ECHOPGM("arm2="); SERIAL_ECHOLN(arm2);
+    //SERIAL_ECHOPGM("Theta1="); SERIAL_ECHOLN(theta1);
+    //SERIAL_ECHOPGM("Theta2="); SERIAL_ECHOLN(theta2);
     
-    plan_buffer_line(arm1, arm2, current_position[Z_AXIS] + deltaZ * step, 
-                     current_position[E_AXIS] + deltaE * step, 
+    // Send move to buffer
+    plan_buffer_line(theta1, theta2, z, e,
                      feedrate*feedmultiply/60/100.0, active_extruder);
   }
   
+  // Update current positions
   for(int8_t i=0; i < NUM_AXIS; i++) {
     current_position[i] = destination[i];
   }
-  current_scara_x_position = arm1;
-  current_scara_y_position = arm2;
+  current_scara_x_position = theta1;
+  current_scara_y_position = theta2;
 }
 
 void prepare_cartesian_move()
