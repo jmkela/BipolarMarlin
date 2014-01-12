@@ -1,30 +1,28 @@
-Marlin-SCARA
+Bipolar Marlin
 ============
 
-This is modified Marlin 1.0.0 for printers with parallel SCARA geometry.
-Hacked to transform cartesian coordinates into SCARA arm coordinates
-on the fly, otherwise works like standard Marlin. Configuration.h has
-a section for the SCARA geometry details.
+This is a modified Marlin fimware for bipolar 3D printers. 
+Hacked to transform cartesian coordinates into bipolar coordinates
+on the fly, otherwise works like standard Marlin. 
+Its based on [ttsalo's work](https://github.com/ttsalo/Marlin-SCARA) for SCARA printers.
 
 G-code modifications:
 
-* G93 puts the firmware into translated SCARA mode. The coordinates are
-  clamped to the work area as usual. (Default)
-* G94 puts the firmware into raw mode, allowing the raw control of the 
-  arms using the G0/G1 codes. (Positions are degrees of rotation clockwise
-  from the straight forward orientation.) Warning, does not clamp the values!
-* G92 sets the raw arm positions when in raw mode.
-* G28 (homing) is disabled for now. Does nothing.
-* G0/G1 feedrates are interpreted as the maximum degrees/s arm rotation speed,
+* G93 turns on bipolar transformation (Default). You can feed it regular G-Code
+  with cartesian coordinates.
+* G94 puts the firmware into raw mode, allowing the raw control of each
+  axis using the G0/G1 codes. Positions are degrees of rotation.
+  Warning, does not clamp the values!
+* G92 sets the raw angles when in raw mode.
+* G28 (homing) works. Homeing is disabled for the platter (θ₁ axis) since
+  it is homeless.
+* G0/G1 feedrates are interpreted as the maximum degrees/s rotation speed,
   not as the real cartesian speed of the print head. Thus a simple linear
   move may have a varying cartesian speed depending on the position and
   orientation on the print area. The E axis should still always move the
   correct amount during the move, but the E speed may vary as well.
-
-Once the arm and Z positions have been set manually, it's possible to print
-stock .gcode files from Slic3r. (And once there is a working homing mechanism,
-printing exactly like on cartesian printers should be possible.)
-
+  This will also cause the estimated print times reported by your host
+  software to be incorrect.
 
 Quick Information
 ===================

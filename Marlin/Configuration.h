@@ -75,7 +75,7 @@
 #define TEMP_SENSOR_0 7
 #define TEMP_SENSOR_1 0
 #define TEMP_SENSOR_2 0
-#define TEMP_SENSOR_BED 0
+#define TEMP_SENSOR_BED 1
 
 // Actual temperature must be close to target for this long before M109 returns success
 #define TEMP_RESIDENCY_TIME 10	// (seconds)
@@ -279,7 +279,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 // θ₂ Axis: 200 steps * 16 microsteps/step * (450 teeth / 18 teeth) / 360 degrees = 222.222 steps/degree
 // Z Axis: 200 steps * 16 microsteps/step * (36 teeth / 18 teeth) / 1.25 mm = 5120 steps/mm
 // E Axis: 200 steps * 16 microsteps/step * (47 teeth / 9 teeth) / 8*pi mm = 664.914 steps/mm
-#define DEFAULT_MAX_FEEDRATE          {50, 50, 1.3, 45}    // degrees/sec and mm/sec
+#define DEFAULT_MAX_FEEDRATE          {42, 42, 1.3, 45}    // degrees/sec and mm/sec
 #define DEFAULT_MAX_ACCELERATION      {1000, 1000, 1000, 10000}    // X, Y, Z, E maximum start speed for accelerated moves. E default values are good for skeinforge 40+, for older versions raise them a lot.
 
 #define DEFAULT_ACCELERATION          3000    // X, Y, Z and E max acceleration in mm/s^2 for printing moves 
