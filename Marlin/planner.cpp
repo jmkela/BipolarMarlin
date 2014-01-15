@@ -512,6 +512,7 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
     LCD_STATUS;
   }
 
+
   // The target position of the tool in absolute steps
   // Calculate target position in absolute steps
   //this should be done after the wait, because otherwise a M92 code within the gcode disrupts this calculation somehow
@@ -548,8 +549,21 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
   // Mark block as not busy (Not executed by the stepper interrupt)
   block->busy = false;
 
-  // Number of steps for each axis
+  // Allow crossing 180 degree barrier
+  // if theta1 distance ( block->steps_x ) is greater than 180 degrees
+  // add or subtract 360 degrees from position[X_AXIS]
+  // update block->steps_x
   block->steps_x = labs(target[X_AXIS]-position[X_AXIS]);
+  if (block->steps_x > HALF_CIRCLE_STEPS)
+  {
+    if (position[X_AXIS] > 0)
+      {position[X_AXIS] -= HALF_CIRCLE_STEPS*2;}
+    else 
+      {position[X_AXIS] += HALF_CIRCLE_STEPS*2;}
+    block->steps_x = labs(target[X_AXIS]-position[X_AXIS]);
+  }
+
+  // Number of steps for each axis
   block->steps_y = labs(target[Y_AXIS]-position[Y_AXIS]);
   block->steps_z = labs(target[Z_AXIS]-position[Z_AXIS]);
   block->steps_e = labs(target[E_AXIS]-position[E_AXIS]);

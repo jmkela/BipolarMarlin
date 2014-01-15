@@ -1662,13 +1662,14 @@ void clamp_to_software_endstops(float target[3])
   }
 }
 
-/* Parallel SCARA kinematics. 
+/* Bipolar kinematics. 
 
-   The firmware's internal X and Y coordinates are the arm rotations
+   The firmware's internal X and Y coordinates are the axis rotations
    in degrees, not the cartesian position of the toolhead. In raw
-   mode, the G0/G1 commands will drive the arms to the desired
-   rotation. (Warning! this can cause the arms to collide) With raw
-   mode off, the given coordinates will be interpreted as the
+   mode, the G0/G1 commands will drive the axes to the desired
+   rotation. 
+   
+   With raw mode off, the given coordinates will be interpreted as the
    cartesian destination point and the prepare_move function will
    convert them to SCARA arm rotations before queuing them for the
    planner.

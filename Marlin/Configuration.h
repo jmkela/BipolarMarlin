@@ -210,7 +210,7 @@
 // The pullups are needed if you directly connect a mechanical endswitch between the signal and ground pins.
 const bool X_ENDSTOPS_INVERTING = true; // set to true to invert the logic of the endstops. 
 const bool Y_ENDSTOPS_INVERTING = false; // set to true to invert the logic of the endstops. 
-const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of the endstops. 
+const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of the endstops. 
 //#define DISABLE_MAX_ENDSTOPS
 
 // For Inverting Stepper Enable Pins (Active Low) use 0, Non Inverting (Active High) use 1
@@ -245,7 +245,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define X_MIN_POS 0
 #define Y_MAX_POS 47.4
 #define Y_MIN_POS 0.0
-#define Z_MAX_POS 100.0
+#define Z_MAX_POS 150.0
 #define Z_MIN_POS 0.0
 
 #define X_MAX_LENGTH (X_MAX_POS - X_MIN_POS)
@@ -260,12 +260,6 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define MANUAL_X_HOME_POS 0
 #define MANUAL_Y_HOME_POS 0
 #define MANUAL_Z_HOME_POS 0
-
-//// BIPOLAR SETTINGS
-#define BIPOLAR_RADIUS 160
-// Cartesian movement is divided into segments at most this long (in mm)
-// before being mapped into scara coordinates.
-#define SCARA_MOVE_APPROX_LEN 1.0
 
 //// MOVEMENT SETTINGS
 #define NUM_AXIS 4 // The axis order in all axis related arrays is θ₁, θ₂, Z, E
@@ -289,6 +283,14 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define DEFAULT_XYJERK                10.0    // (mm/sec)
 #define DEFAULT_ZJERK                 5.0     // (mm/sec)
 #define DEFAULT_EJERK                 5.0    // (mm/sec)
+
+//// BIPOLAR SETTINGS
+#define BIPOLAR_RADIUS 160
+// Cartesian movement is divided into segments at most this long (in mm)
+// before being mapped into bipolar coordinates.
+#define SCARA_MOVE_APPROX_LEN 1.0
+// Number of step corresponding to 180 degrees of the θ₁ axis
+#define HALF_CIRCLE_STEPS 34222	// 180 degrees * 190.123 steps/degree
 
 //===========================================================================
 //=============================Additional Features===========================
