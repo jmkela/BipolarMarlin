@@ -31,8 +31,12 @@
 /* Use this file to help the Arduino IDE find which Arduino libraries are needed and to keep documentation on GCode */
 
 #include "Configuration.h"
+#include "pins.h"
+
 #ifdef ULTRA_LCD
 #include <LiquidCrystal.h>
 #endif
 
-
+#if DIGIPOTSS_PIN > -1
+#include <SPI.h>
+#endif

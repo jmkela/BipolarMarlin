@@ -39,6 +39,11 @@
 #include "ConfigurationStore.h"
 #include "language.h"
 #include "pins_arduino.h"
+#include "stdio.h"
+
+#if DIGIPOTSS_PIN > -1
+#include <SPI.h>
+#endif
 
 #define VERSION_STRING  "1.0.0 BIPOLAR"
 
@@ -64,11 +69,13 @@
 //RepRap M Codes
 // M0   - Unconditional stop - Wait for user to press a button on the LCD (Only if ULTRA_LCD is enabled)
 // M1   - Same as M0
-// M104 - Set extruder target temp
-// M105 - Read current temp
-// M106 - Fan on
-// M107 - Fan off
-// M109 - Wait for extruder current temp to reach target temp.
+// M104 - Set extruder target temp (use T# to explicitly specify extruder, 
+//        H<deg> and L<deg> can be used to increase/decrease the target temperature)
+//        Note: increase/decrease is allowed only once unless opposite operation is performed before more attempts are made.
+// M105 - Read current temp (use A1 to read for all extruders, T# for specific one)
+// M106 - Fan on (use T# for dual drive machines to tun the fan on/off for specific extruder, A1 for all)
+// M107 - Fan off (use T# for dual drive machines to tun the fan on/off for specific extruder, A1 for all)
+// M109 - Wait for extruder to reach target temp (use A1 to wait for all extruders, W<sec> to change dwell time)
 // M114 - Display current position
 
 //Custom M Codes
@@ -86,7 +93,7 @@
 // M29  - Stop SD write
 // M30  - Delete file from SD (M30 filename.g)
 // M31  - Output time since last M109 or SD card start to serial
-// M42  - Change pin status via gcode
+// M42  - Change pin status via gcode Use M42 Px Sy to set pin x to value y, when omitting Px the onboard led will be used.
 // M80  - Turn on Power Supply
 // M81  - Turn off Power Supply
 // M82  - Set E codes absolute (default)
@@ -96,7 +103,7 @@
 // M85  - Set inactivity shutdown timer with parameter S<seconds>. To disable set zero (default)
 // M92  - Set axis_steps_per_unit - same syntax as G92
 // M114 - Output current position to serial port 
-// M115	- Capabilities string
+// M115 - Capabilities string
 // M117 - display message
 // M119 - Output Endstop status to serial port
 // M140 - Set bed target temp
@@ -105,27 +112,54 @@
 // M201 - Set max acceleration in units/s^2 for print moves (M201 X1000 Y1000)
 // M202 - Set max acceleration in units/s^2 for travel moves (M202 X1000 Y1000) Unused in Marlin!!
 // M203 - Set maximum feedrate that your machine can sustain (M203 X200 Y200 Z300 E10000) in mm/sec
-// M204 - Set default acceleration: S normal moves T filament only moves (M204 S3000 T7000) im mm/sec^2  also sets minimum segment time in ms (B20000) to prevent buffer underruns and M20 minimum feedrate
-// M205 -  advanced settings:  minimum travel speed S=while printing T=travel only,  B=minimum segment time X= maximum xy jerk, Z=maximum Z jerk, E=maximum E jerk
+// M204 - Set default acceleration: S normal moves R filament only moves (M204 S3000 R7000) im mm/sec^2  also sets minimum segment time in ms (B20000) to prevent buffer underruns and M20 minimum feedrate, T sets the extruder R applies to
+// M205 - Advanced settings:  minimum travel speed S=while printing V=travel only,  B=minimum segment time X= maximum xy jerk, Z=maximum Z jerk, E=maximum E jerk (for retracts), T=extruder E applies to
 // M206 - set additional homeing offset
 // M207 - set retract length S[positive mm] F[feedrate mm/sec] Z[additional zlift/hop]
 // M208 - set recover=unretract length S[positive mm surplus to the M207 S*] F[feedrate mm/sec]
 // M209 - S<1=true/0=false> enable automatic retract detect if the slicer did not support G10/11: every normal extrude-only move will be classified as retract depending on the direction.
-// M220 S<factor in percent>- set speed factor override percentage
-// M221 S<factor in percent>- set extrude factor override percentage
+// M218 - Set hotend offset (in mm): T<extruder_number> X<offset_on_X> Y<offset_on_Y>
+// M220 - S<factor in percent>- set speed factor override percentage
+// M221 - S<factor in percent>- set extrude factor override percentage
 // M240 - Trigger a camera to take a photograph
-// M301 - Set PID parameters P I and D
+// M301 - Set PID parameters P I D and R (PID active range)
 // M302 - Allow cold extrudes
 // M303 - PID relay autotune S<temperature> sets the target temperature. (default target temperature = 150C)
 // M304 - Set bed PID parameters P I and D
+// M322 - Turn the "follow me" mode on or off for an extruder (paramters: T<extruder>  S<1-on/0-off>), 
+//        it's automatically off for the active extruder. If used without S parameter prints current settings.
+//        If used without T paramter applies to all extruders.
+// M331 - Save current position coordinates (all axes, for active extruder).
+//        S<SLOT> - specifies memory slot # (0-based) to save into (default 0)
+// M332 - Apply/restore saved coordinates to the active extruder. X<0|1>,Y<0|1>,Z<0|1>,E<0|1> - use 1 to filter the axis in (default), 0 to filter it out. 
+//        F<speed> - make move to the restored position, if 'F' is not used the restored coordinates set as current position. 
+//        S<SLOT> - specifies memory slot # (0-based) to restore from (default 0)
+// M340 - Set filament compression (bowden drive) compensation table paramters. P<0-N> - table entry position, 
+//        S<speed> - E speed in mm/sec, C<compensation> - length (in mm) of the filament compressed in the guiding 
+//        tube when extruding at the given speed. The table entries should be ordered by E speed value. 
+//        Set E speed to 0 for the last entry if need less that max size entries.
+// M350 - Set microstepping mode.
+// M351 - Toggle MS1 MS2 pins directly.
 // M400 - Finish all moves
 // M500 - stores paramters in EEPROM
 // M501 - reads parameters from EEPROM (if you need reset them after you changed them temporarily).  
 // M502 - reverts to the default "factory settings".  You still need to store them in EEPROM afterwards if you want to.
 // M503 - print the current settings (from memory not from eeprom)
+// M540 - Use S[0|1] to enable or disable the stop SD card print on endstop hit (requires ABORT_ON_ENDSTOP_HIT_FEATURE_ENABLED)
+// M600 - Pause for filament change X[pos] Y[pos] Z[relative lift] E[initial retract] L[later retract distance for removal]
+// M907 - Set digital trimpot motor current using axis codes.
+// M908 - Control digital trimpot directly.
 // M999 - Restart after being stopped by error
 
-//Stepper Movement Variables
+// T<NUM> [F<NUM>] [S<NUM>] - change the extruder, the feedrate might be set 
+//                            to control the speed of the re-positioning move. 
+//                            S# allows to choose what E position the just
+//                            selected extruder should start from (# - the 
+//                            extruder number to pick the position from). If 
+//                            S is not specified the last known position for 
+//                            the selected extruder is used.
+
+// Stepper Movement Variables
 
 //===========================================================================
 //=============================imported variables============================
@@ -141,17 +175,52 @@ CardReader card;
 float homing_feedrate[] = HOMING_FEEDRATE;
 bool axis_relative_modes[] = AXIS_RELATIVE_MODES;
 bool scara_raw_mode = false;
-volatile int feedmultiply=100; //100->1 200->2
+int feedmultiply=100; //100->1 200->2
 int saved_feedmultiply;
-volatile bool feedmultiplychanged=false;
-volatile int extrudemultiply=100; //100->1 200->2
-float current_position[NUM_AXIS] = { 0.0, 0.0, 0.0, 0.0 };
+int extrudemultiply=100; //100->1 200->2
+float current_position[NUM_AXIS];
 float current_scara_x_position = 90.0, current_scara_y_position = 0.0;
-float add_homeing[3]={0,0,0};
-float min_pos[3] = { X_MIN_POS, Y_MIN_POS, Z_MIN_POS };
-float max_pos[3] = { X_MAX_POS, Y_MAX_POS, Z_MAX_POS };
-uint8_t active_extruder = 0;
-unsigned char FanSpeed=0;
+float e_last_position[EXTRUDERS];
+#ifdef DUAL_X_DRIVE
+  float x_last_position[EXTRUDERS] = {X0_HOME_POS, X1_HOME_POS};
+#endif
+#ifdef DUAL_Y_DRIVE
+  float y_last_position[EXTRUDERS] = {Y0_HOME_POS, Y1_HOME_POS};
+#endif
+#ifdef ENABLE_ADD_HOMEING
+float add_homeing[EXTRUDERS][3];
+#endif // ENABLE_ADD_HOMEING
+uint8_t active_extruder;
+uint8_t fanSpeed[EXTRUDERS];
+// Extruder offset, only in XY plane
+#if EXTRUDERS > 1
+float extruder_offset[2][EXTRUDERS] = { 
+#if defined(EXTRUDER_OFFSET_X) && defined(EXTRUDER_OFFSET_Y)
+  EXTRUDER_OFFSET_X, EXTRUDER_OFFSET_Y 
+#endif
+}; 
+#endif // EXTRUDERS > 1
+
+#ifdef ENABLE_DEBUG
+  unsigned int debug_flags;
+#endif // ENABLE_DEBUG
+
+#ifdef DUAL_X_DRIVE
+  float gXMaxPos[EXTRUDERS] = {X0_MAX_POS, X1_MAX_POS};
+  float gXMinPos[EXTRUDERS] = {X0_MIN_POS, X1_MIN_POS};
+#endif // DUAL_X_DRIVE
+  
+#ifdef DUAL_Y_DRIVE
+  float gYMaxPos[EXTRUDERS] = {Y0_MAX_POS, Y1_MAX_POS};
+  float gYMinPos[EXTRUDERS] = {Y0_MIN_POS, Y1_MIN_POS};
+#endif // DUAL_Y_DRIVE
+
+#ifdef C_COMPENSATION
+  float gCComp[][EXTRUDERS][2] = { C_COMPENSATION };
+  int gCComp_size[EXTRUDERS];
+  int gCComp_max_size = sizeof(gCComp) / ((EXTRUDERS * sizeof(float)) << 1);
+  float gCCom_min_speed[EXTRUDERS] = C_COMPENSATION_MIN_SPEED;
+#endif // C_COMPENSATION
 
 #ifdef FWRETRACT
   bool autoretract_enabled=true;
@@ -159,6 +228,20 @@ unsigned char FanSpeed=0;
   float retract_length=3, retract_feedrate=17*60, retract_zlift=0.8;
   float retract_recover_length=0, retract_recover_feedrate=8*60;
 #endif
+
+#if EXTRUDERS > 1
+  uint8_t follow_me = 0; // Bitmask of the follow me mode state
+  bool follow_me_heater; // Follow the hotend temperature changes
+  #ifdef PER_EXTRUDER_FANS
+  bool follow_me_fan; // Follw the fan speed changes
+  #endif // PER_EXTRUDER_FANS
+  #if defined(DUAL_X_DRIVE) || defined(DUAL_Y_DRIVE)
+  uint8_t follow_mir = 0; // Bitmask of the follow me mirror mode state
+  #endif
+#endif
+
+const char errormagic[] PROGMEM ="Error:";
+const char echomagic[] PROGMEM ="echo:";
 
 //===========================================================================
 //=============================private variables=============================
@@ -177,29 +260,37 @@ static bool fromsd[BUFSIZE];
 static int bufindr = 0;
 static int bufindw = 0;
 static int buflen = 0;
-//static int i = 0;
 static char serial_char;
 static int serial_count = 0;
+static int recovery_count = 0;
 static boolean comment_mode = false;
 static char *strchr_pointer; // just a pointer to find chars in the cmd string like X, Y, Z, E, etc
 
 const int sensitive_pins[] = SENSITIVE_PINS; // Sensitive pin list for M42
 
-//static float tt = 0;
-//static float bt = 0;
+//Tracks how many times temperature was adjusted up/down
+static int temp_adjustment = 0;
 
 //Inactivity shutdown variables
 static unsigned long previous_millis_cmd = 0;
 static unsigned long max_inactive_time = 0;
 static unsigned long stepper_inactive_time = DEFAULT_STEPPER_DEACTIVE_TIME*1000l;
 
+// Flag indicating that machine is printing (determined by checking how many 
+// movements are queued by planner). Updated on the new command input.
+bool machine_printing = false;
+// Flag controlling printing of individual echo strings
+bool do_print = true;
+
 unsigned long starttime=0;
 unsigned long stoptime=0;
 
 static uint8_t tmp_extruder;
 
-
 bool Stopped=false;
+
+bool pos_saved=false;
+float saved_position[NUM_POSITON_SLOTS][NUM_AXIS];
 
 //===========================================================================
 //=============================ROUTINES=============================
@@ -207,13 +298,6 @@ bool Stopped=false;
 
 void get_arc_coordinates();
 bool setTargetedHotend(int code);
-
-void serial_echopair_P(const char *s_P, float v)
-    { serialprintPGM(s_P); SERIAL_ECHO(v); }
-void serial_echopair_P(const char *s_P, double v)
-    { serialprintPGM(s_P); SERIAL_ECHO(v); }
-void serial_echopair_P(const char *s_P, unsigned long v)
-    { serialprintPGM(s_P); SERIAL_ECHO(v); }
 
 extern "C"{
   extern unsigned int __bss_end;
@@ -250,6 +334,21 @@ void enquecommand(const char *cmd)
   }
 }
 
+void enquecommand_P(const char *cmd)
+{
+  if(buflen < BUFSIZE)
+  {
+    //this is dangerous if a mixing of serial and this happsens
+    strcpy_P(&(cmdbuffer[bufindw][0]),cmd);
+    SERIAL_ECHO_START;
+    SERIAL_ECHOPGM("enqueing \"");
+    SERIAL_ECHO(cmdbuffer[bufindw]);
+    SERIAL_ECHOLNPGM("\"");
+    bufindw= (bufindw + 1)%BUFSIZE;
+    buflen += 1;
+  }
+}
+
 void setup_killpin()
 {
   #if( KILL_PIN>-1 )
@@ -275,6 +374,10 @@ void setup_powerhold()
       SET_OUTPUT(SUICIDE_PIN);
       WRITE(SUICIDE_PIN, HIGH);
    #endif
+ #endif
+ #if (PS_ON_PIN > -1)
+   SET_OUTPUT(PS_ON_PIN);
+   WRITE(PS_ON_PIN, PS_ON_AWAKE);
  #endif
 }
 
@@ -314,6 +417,8 @@ void setup()
       SERIAL_ECHOPGM(STRING_VERSION_CONFIG_H);
       SERIAL_ECHOPGM(MSG_AUTHOR);
       SERIAL_ECHOLNPGM(STRING_CONFIG_H_AUTHOR);
+      SERIAL_ECHOPGM("Compiled: ");
+      SERIAL_ECHOLNPGM(__DATE__);
     #endif
   #endif
   SERIAL_ECHO_START;
@@ -325,14 +430,18 @@ void setup()
   {
     fromsd[i] = false;
   }
+  // Figure the number of useable entries in the compression compensation table
+  #ifdef C_COMPENSATION
+  for(uint8_t e = 0; e < EXTRUDERS; e++) {
+    int size;
+    for(size = 0; 
+        size < gCComp_max_size && gCComp[size][e][0] > 0.0;
+        size++);
+    gCComp_size[e] = size;
+  }
+  #endif // C_COMPENSATION
   
   Config_RetrieveSettings(); // loads data from EEPROM if available
-
-  for(int8_t i=0; i < NUM_AXIS; i++)
-  {
-    axis_steps_per_sqr_second[i] = max_acceleration_units_per_sq_second[i] * axis_steps_per_unit[i];
-  }
-
 
   tp_init();    // Initialize temperature loop 
   plan_init();  // Initialize planner;
@@ -340,9 +449,52 @@ void setup()
   st_init();    // Initialize stepper, this enables interrupts!
   setup_photpin();
   
-  LCD_INIT;
+  lcd_init();
+
+  { /* Give it 1/2 of a second to accumulate temperature readings */
+     unsigned long m = millis();
+     while(millis() - m < 500) {
+       manage_heater();
+       lcd_update();
+     }
+  }  
 }
 
+/* Prints the temperatures state string, the new mode output includes 
+   the extruder number(s) and target temperature(s). The active extruder 
+   always printed first, the 'e' parametr is used for the old mode only. */
+void printHeatersState(bool new_mode, uint8_t e)
+{
+  if(!new_mode) {
+    SERIAL_PROTOCOLPGM("T:");
+    SERIAL_PROTOCOL((int)(degHotend(e) + 0.5));
+  }
+  else {
+    for(int8_t i = -1; i < EXTRUDERS; i++) {
+      e = (i >= 0) ? i : active_extruder;
+      if(i == active_extruder) {
+        continue;
+      }
+      SERIAL_PROTOCOL('T');
+      SERIAL_PROTOCOL((int)e);
+      SERIAL_PROTOCOL(':');
+      SERIAL_PROTOCOL((int)(degHotend(e) + 0.5));
+      SERIAL_PROTOCOL('/');
+      SERIAL_PROTOCOL((int)(degTargetHotend(e) + 0.5));
+      SERIAL_PROTOCOL(' ');
+    }
+  }
+  #if TEMP_BED_PIN > -1
+  SERIAL_PROTOCOLPGM(" B:");
+  SERIAL_PROTOCOL((int)(degBed() + 0.5)); 
+  if(new_mode) {
+    SERIAL_PROTOCOL('/');
+    SERIAL_PROTOCOL((int)(degTargetBed() + 0.5));
+  }
+  #endif // TEMP_BED_PIN > -1
+  SERIAL_PROTOCOL('\n');
+  return;
+}
 
 void loop()
 {
@@ -354,25 +506,25 @@ void loop()
   if(buflen)
   {
     #ifdef SDSUPPORT
-      if(card.saving)
+    if(card.saving)
+    {
+      if(strstr_P(cmdbuffer[bufindr], PSTR("M29")) == NULL)
       {
-	if(strstr(cmdbuffer[bufindr],"M29") == NULL)
-	{
-	  card.write_command(cmdbuffer[bufindr]);
-	  SERIAL_PROTOCOLLNPGM(MSG_OK);
-	}
-	else
-	{
-	  card.closefile();
-	  SERIAL_PROTOCOLLNPGM(MSG_FILE_SAVED);
-	}
+        card.write_command(cmdbuffer[bufindr]);
+        SERIAL_PROTOCOLLNPGM(MSG_OK);
       }
       else
       {
-	process_commands();
+        card.closefile();
+        SERIAL_PROTOCOLLNPGM(MSG_FILE_SAVED);
       }
-    #else
+    }
+    else
+    {
       process_commands();
+    }
+    #else
+    process_commands();
     #endif //SDSUPPORT
     buflen = (buflen-1);
     bufindr = (bufindr + 1)%BUFSIZE;
@@ -381,7 +533,7 @@ void loop()
   manage_heater();
   manage_inactivity();
   checkHitEndstops();
-  LCD_STATUS;
+  lcd_update();
 }
 
 void get_command() 
@@ -390,49 +542,36 @@ void get_command()
     serial_char = MYSERIAL.read();
     if(serial_char == '\n' || 
        serial_char == '\r' || 
-       (serial_char == ':' && comment_mode == false) || 
+       (serial_char == ':' && !comment_mode) || 
        serial_count >= (MAX_CMD_SIZE - 1) ) 
     {
+      comment_mode = false; // clear comment mode for the next line
       if(!serial_count) { //if empty line
-        comment_mode = false; //for new command
         return;
       }
       cmdbuffer[bufindw][serial_count] = 0; //terminate string
-      if(!comment_mode){
-        comment_mode = false; //for new command
-        fromsd[bufindw] = false;
-        if(strstr(cmdbuffer[bufindw], "N") != NULL)
-        {
-          strchr_pointer = strchr(cmdbuffer[bufindw], 'N');
-          gcode_N = (strtol(&cmdbuffer[bufindw][strchr_pointer - cmdbuffer[bufindw] + 1], NULL, 10));
-          if(gcode_N != gcode_LastN+1 && (strstr(cmdbuffer[bufindw], "M110") == NULL) ) {
+      fromsd[bufindw] = false;
+      strchr_pointer = strchr(cmdbuffer[bufindw], 'N');
+      if(strchr_pointer != NULL)
+      {
+        gcode_N = (strtol(strchr_pointer + 1, NULL, 10));
+        if(gcode_N != (gcode_LastN + 1) && (strstr(cmdbuffer[bufindw], "M110") == NULL)) {
+          if(recovery_count <= 0) {
             SERIAL_ERROR_START;
             SERIAL_ERRORPGM(MSG_ERR_LINE_NO);
             SERIAL_ERRORLN(gcode_LastN);
-            //Serial.println(gcode_N);
             FlushSerialRequestResend();
-            serial_count = 0;
-            return;
+          } else {
+            --recovery_count;
           }
+          serial_count = 0;
+          return;
+        }
 
-          if(strstr(cmdbuffer[bufindw], "*") != NULL)
-          {
-            byte checksum = 0;
-            byte count = 0;
-            while(cmdbuffer[bufindw][count] != '*') checksum = checksum^cmdbuffer[bufindw][count++];
-            strchr_pointer = strchr(cmdbuffer[bufindw], '*');
-
-            if( (int)(strtod(&cmdbuffer[bufindw][strchr_pointer - cmdbuffer[bufindw] + 1], NULL)) != checksum) {
-              SERIAL_ERROR_START;
-              SERIAL_ERRORPGM(MSG_ERR_CHECKSUM_MISMATCH);
-              SERIAL_ERRORLN(gcode_LastN);
-              FlushSerialRequestResend();
-              serial_count = 0;
-              return;
-            }
-            //if no errors, continue parsing
-          }
-          else 
+        byte checksum = 0;
+        for(strchr_pointer = cmdbuffer[bufindw]; *strchr_pointer != '*'; strchr_pointer++)
+        {
+          if(!*strchr_pointer)
           {
             SERIAL_ERROR_START;
             SERIAL_ERRORPGM(MSG_ERR_NO_CHECKSUM);
@@ -441,48 +580,57 @@ void get_command()
             serial_count = 0;
             return;
           }
-
-          gcode_LastN = gcode_N;
-          //if no errors, continue parsing
+          checksum = checksum^(*strchr_pointer);
         }
-        else  // if we don't receive 'N' but still see '*'
+        if(strtol(strchr_pointer + 1, NULL, 10) != checksum)
         {
-          if((strstr(cmdbuffer[bufindw], "*") != NULL))
-          {
-            SERIAL_ERROR_START;
-            SERIAL_ERRORPGM(MSG_ERR_NO_LINENUMBER_WITH_CHECKSUM);
-            SERIAL_ERRORLN(gcode_LastN);
-            serial_count = 0;
-            return;
-          }
+          SERIAL_ERROR_START;
+          SERIAL_ERRORPGM(MSG_ERR_CHECKSUM_MISMATCH);
+          SERIAL_ERRORLN(gcode_LastN);
+          FlushSerialRequestResend();
+          serial_count = 0;
+          return;
         }
-        if((strstr(cmdbuffer[bufindw], "G") != NULL)){
-          strchr_pointer = strchr(cmdbuffer[bufindw], 'G');
-          switch((int)((strtod(&cmdbuffer[bufindw][strchr_pointer - cmdbuffer[bufindw] + 1], NULL)))){
-          case 0:
-          case 1:
-          case 2:
-          case 3:
-            if(Stopped == false) { // If printer is stopped by an error the G[0-3] codes are ignored.
-	      #ifdef SDSUPPORT
-              if(card.saving)
-                break;
-	      #endif //SDSUPPORT
-              SERIAL_PROTOCOLLNPGM(MSG_OK); 
-            }
-            else {
-              SERIAL_ERRORLNPGM(MSG_ERR_STOPPED);
-              LCD_MESSAGEPGM(MSG_STOPPED);
-            }
-            break;
-          default:
-            break;
-          }
-
-        }
-        bufindw = (bufindw + 1)%BUFSIZE;
-        buflen += 1;
+        gcode_LastN = gcode_N;
+        // No errors, continue parsing
       }
+      else  // if we don't receive 'N' but still see '*'
+      {
+        if((strchr(cmdbuffer[bufindw], '*') != NULL))
+        {
+          SERIAL_ERROR_START;
+          SERIAL_ERRORPGM(MSG_ERR_NO_LINENUMBER_WITH_CHECKSUM);
+          SERIAL_ERRORLN(gcode_LastN);
+          serial_count = 0;
+          return;
+        }
+      }
+      strchr_pointer = strchr(cmdbuffer[bufindw], 'G');
+      if(strchr_pointer != NULL)
+      {
+        switch(strtol(strchr_pointer + 1, NULL, 10)) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+          if(Stopped == false) { // If printer is stopped by an error the G[0-3] codes are ignored.
+            #ifdef SDSUPPORT
+            if(card.saving)
+              break;
+            #endif //SDSUPPORT
+            SERIAL_PROTOCOLLNPGM(MSG_OK); 
+          }
+          else {
+            SERIAL_ERRORLNPGM(MSG_ERR_STOPPED);
+            LCD_MESSAGEPGM(MSG_STOPPED);
+          }
+          break;
+        default:
+          break;
+        }
+      }
+      bufindw = (bufindw + 1)%BUFSIZE;
+      buflen += 1;
       serial_count = 0; //clear buffer
     }
     else
@@ -495,7 +643,8 @@ void get_command()
   if(!card.sdprinting || serial_count!=0){
     return;
   }
-  while( !card.eof()  && buflen < BUFSIZE) {
+  while(!card.eof() && buflen < BUFSIZE) 
+  {
     int16_t n=card.get();
     serial_char = (char)n;
     if(serial_char == '\n' || 
@@ -503,34 +652,30 @@ void get_command()
        (serial_char == ':' && comment_mode == false) || 
        serial_count >= (MAX_CMD_SIZE - 1)||n==-1) 
     {
+      comment_mode = false; //for new command
       if(card.eof()){
         SERIAL_PROTOCOLLNPGM(MSG_FILE_PRINTED);
         stoptime=millis();
         char time[30];
         unsigned long t=(stoptime-starttime)/1000;
-        int sec,min;
-        min=t/60;
-        sec=t%60;
-        sprintf(time,"%i min, %i sec",min,sec);
+        int hours, minutes;
+        minutes=(t/60)%60;
+        hours=t/60/60;
+        sprintf_P(time, PSTR("%i hours %i minutes"),hours, minutes);
         SERIAL_ECHO_START;
         SERIAL_ECHOLN(time);
-        LCD_MESSAGE(time);
+        lcd_setstatus(time);
         card.printingHasFinished();
         card.checkautostart(true);
-        
       }
       if(!serial_count)
       {
-        comment_mode = false; //for new command
         return; //if empty line
       }
       cmdbuffer[bufindw][serial_count] = 0; //terminate string
-//      if(!comment_mode){
-        fromsd[bufindw] = true;
-        buflen += 1;
-        bufindw = (bufindw + 1)%BUFSIZE;
-//      }     
-      comment_mode = false; //for new command
+      fromsd[bufindw] = true;
+      buflen += 1;
+      bufindw = (bufindw + 1)%BUFSIZE;
       serial_count = 0; //clear buffer
     }
     else
@@ -539,9 +684,7 @@ void get_command()
       if(!comment_mode) cmdbuffer[bufindw][serial_count++] = serial_char;
     }
   }
-  
   #endif //SDSUPPORT
-
 }
 
 
@@ -555,11 +698,6 @@ long code_value_long()
   return (strtol(&cmdbuffer[bufindr][strchr_pointer - cmdbuffer[bufindr] + 1], NULL, 10)); 
 }
 
-bool code_seen(char code_string[]) //Return True if the string was found
-{ 
-  return (strstr(cmdbuffer[bufindr], code_string) != NULL); 
-}  
-
 bool code_seen(char code)
 {
   strchr_pointer = strchr(cmdbuffer[bufindr], code);
@@ -570,54 +708,81 @@ bool code_seen(char code)
     static inline type pgm_read_any(const type *p)	\
 	{ return pgm_read_##reader##_near(p); }
 
-DEFINE_PGM_READ_ANY(float,       float);
+DEFINE_PGM_READ_ANY(float, float);
 DEFINE_PGM_READ_ANY(signed char, byte);
 
-#define XYZ_CONSTS_FROM_CONFIG(type, array, CONFIG)	\
-static const PROGMEM type array##_P[3] =		\
-    { X_##CONFIG, Y_##CONFIG, Z_##CONFIG };		\
-static inline type array(int axis)			\
+#define XYZ_CONSTS_FROM_CONFIG(type, array, CONFIG) \
+  const type array##_P[3] PROGMEM =            \
+    { X_##CONFIG, Y_##CONFIG, Z_##CONFIG };  \
+  static inline type array(int axis)           \
     { return pgm_read_any(&array##_P[axis]); }
 
-XYZ_CONSTS_FROM_CONFIG(float, base_min_pos,    MIN_POS);
-XYZ_CONSTS_FROM_CONFIG(float, base_max_pos,    MAX_POS);
-XYZ_CONSTS_FROM_CONFIG(float, base_home_pos,   HOME_POS);
-XYZ_CONSTS_FROM_CONFIG(float, max_length,      MAX_LENGTH);
+XYZ_CONSTS_FROM_CONFIG(float, max_length, MAX_LENGTH);
 XYZ_CONSTS_FROM_CONFIG(float, home_retract_mm, HOME_RETRACT_MM);
-XYZ_CONSTS_FROM_CONFIG(signed char, home_dir,  HOME_DIR);
+
+#if !defined(DUAL_X_DRIVE) && !defined(DUAL_Y_DRIVE)
+  XYZ_CONSTS_FROM_CONFIG(float, base_home_pos, HOME_POS);
+  XYZ_CONSTS_FROM_CONFIG(signed char, home_dir, HOME_DIR);
+#else 
+  #ifndef DUAL_X_DRIVE
+  #  define X0_HOME_POS X_HOME_POS
+  #  define X1_HOME_POS X_HOME_POS
+  #  define X0_HOME_DIR X_HOME_DIR
+  #  define X1_HOME_DIR X_HOME_DIR
+  #endif // DUAL_X_DRIVE
+  #ifndef DUAL_Y_DRIVE
+  #  define Y0_HOME_POS Y_HOME_POS
+  #  define Y1_HOME_POS Y_HOME_POS
+  #  define Y0_HOME_DIR Y_HOME_DIR
+  #  define Y1_HOME_DIR Y_HOME_DIR
+  #endif // DUAL_Y_DRIVE
+  const float base_home_pos_P[EXTRUDERS][3] PROGMEM = {
+               { X0_HOME_POS, Y0_HOME_POS, Z_HOME_POS },
+               { X1_HOME_POS, Y1_HOME_POS, Z_HOME_POS }		
+  };
+  static inline float base_home_pos(int axis)
+               { return pgm_read_any(&base_home_pos_P[active_extruder][axis]); }
+  const signed char home_dir_P[EXTRUDERS][3] PROGMEM = {
+               { X0_HOME_DIR, Y0_HOME_DIR, Z_HOME_DIR },
+               { X1_HOME_DIR, Y1_HOME_DIR, Z_HOME_DIR }
+  };
+  static inline signed char home_dir(int axis)
+               { return pgm_read_any(&home_dir_P[active_extruder][axis]); }
+#endif // !defined(DUAL_X_DRIVE) && !defined(DUAL_Y_DRIVE)
 
 static void axis_is_at_home(int axis) {
-  current_position[axis] = base_home_pos(axis) + add_homeing[axis];
-  min_pos[axis] =          base_min_pos(axis) + add_homeing[axis];
-  max_pos[axis] =          base_max_pos(axis) + add_homeing[axis];
+  current_position[axis] = base_home_pos(axis);
+  #ifdef ENABLE_ADD_HOMEING
+  current_position[axis] += add_homeing[ACTIVE_EXTRUDER][axis];
+  #endif // ENABLE_ADD_HOMEING
 }
 
 static void homeaxis(int axis) {
 #define HOMEAXIS_DO(LETTER) \
-  ((LETTER##_MIN_PIN > -1 && LETTER##_HOME_DIR==-1) || (LETTER##_MAX_PIN > -1 && LETTER##_HOME_DIR==1))
+  ((LETTER##_MIN_PIN > -1 && home_dir(LETTER##_AXIS) < 0) || (LETTER##_MAX_PIN > -1 && home_dir(LETTER##_AXIS) > 0))
 
   if (axis==X_AXIS ? HOMEAXIS_DO(X) :
-      axis==Y_AXIS ? HOMEAXIS_DO(Y) :
-      axis==Z_AXIS ? HOMEAXIS_DO(Z) :
-      0) {
+        axis==Y_AXIS ? HOMEAXIS_DO(Y) :
+          axis==Z_AXIS ? HOMEAXIS_DO(Z) : false) 
+  {
     current_position[axis] = 0;
     plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
     destination[axis] = 1.5 * max_length(axis) * home_dir(axis);
     feedrate = homing_feedrate[axis];
     plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate/60, active_extruder);
     st_synchronize();
-   
+
     current_position[axis] = 0;
     plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
     destination[axis] = -home_retract_mm(axis) * home_dir(axis);
     plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate/60, active_extruder);
     st_synchronize();
-   
-    destination[axis] = 2*home_retract_mm(axis) * home_dir(axis);
+
+    destination[axis] = 2 * home_retract_mm(axis) * home_dir(axis);
     feedrate = homing_feedrate[axis]/2 ; 
     plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate/60, active_extruder);
     st_synchronize();
-   
+
     axis_is_at_home(axis);					
     destination[axis] = current_position[axis];
     feedrate = 0.0;
@@ -626,10 +791,60 @@ static void homeaxis(int axis) {
 }
 #define HOMEAXIS(LETTER) homeaxis(LETTER##_AXIS)
 
+#if EXTRUDERS > 1
+// Makes all the necessary actions for switching extruders
+static void set_active_extruder(uint8_t to_extruder, 
+                                uint8_t e_starts_from_extruder, bool make_move)
+{
+  if(to_extruder != active_extruder) {
+    // Save current position to return to after applying extruder offset
+    memcpy(destination, current_position, sizeof(destination));
+    // Offset extruder (only by XY)
+    for(uint8_t i = 0; i < 2; i++) {
+       current_position[i] = current_position[i] - 
+                             extruder_offset[i][active_extruder] +
+                             extruder_offset[i][to_extruder];
+    }
+    // Save the current coordinate of the active extruder
+    e_last_position[active_extruder] = current_position[E_AXIS];
+    #ifdef DUAL_X_DRIVE
+    x_last_position[active_extruder] = current_position[X_AXIS];
+    current_position[X_AXIS] = x_last_position[to_extruder];
+    #endif // DUAL_X_DRIVE
+    #ifdef DUAL_Y_DRIVE
+    y_last_position[active_extruder] = current_position[Y_AXIS];
+    current_position[Y_AXIS] = y_last_position[to_extruder];
+    #endif // DUAL_Y_DRIVE
+    // Clear the follow me mode for the selected extruder
+    follow_me &= ~((int)to_extruder);
+    // Set the active extruder
+    active_extruder = to_extruder;
+    // Restore E coordinate of the specified extruder
+    current_position[E_AXIS] = e_last_position[e_starts_from_extruder];
+    destination[E_AXIS] = current_position[E_AXIS];
+    plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+    // Move to the old position if 'F' was in the parameters
+    if(make_move) {
+      if (scara_raw_mode) {
+        prepare_cartesian_move();
+      } else {
+        prepare_scara_move();
+      }
+    }
+    // Make sure we complete all the planned moves before continuing
+    st_synchronize();
+  }
+}
+#endif // EXTRUDERS > 1
+
 void process_commands()
 {
   unsigned long codenum; //throw away variable
   char *starpos = NULL;
+  
+#ifdef NO_ECHO_WHILE_PRINTING
+  machine_printing = (num_blocks_queued() >= MACHINE_PRINTING_BLOCKS);
+#endif // NO_ECHO_WHILE_PRINTING
 
   if(code_seen('G'))
   {
@@ -672,7 +887,7 @@ void process_commands()
       while(millis()  < codenum ){
         manage_heater();
         manage_inactivity();
-        LCD_STATUS;
+        lcd_update();
       }
       break;
       #ifdef FWRETRACT  
@@ -729,22 +944,23 @@ void process_commands()
       /*#ifdef QUICK_HOME
       if((home_all_axis)||( code_seen(axis_codes[X_AXIS]) && code_seen(axis_codes[Y_AXIS])) )  //first diagonal move
       {
-        current_position[X_AXIS] = 0;current_position[Y_AXIS] = 0;  
-
+        current_position[X_AXIS] = 0; current_position[Y_AXIS] = 0;
+        
         plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]); 
-        destination[X_AXIS] = 1.5 * X_MAX_LENGTH * X_HOME_DIR;destination[Y_AXIS] = 1.5 * Y_MAX_LENGTH * Y_HOME_DIR;  
+        destination[X_AXIS] = 1.5 * X_MAX_LENGTH * home_dir(X_AXIS);
+        destination[Y_AXIS] = 1.5 * Y_MAX_LENGTH * home_dir(Y_AXIS);
         feedrate = homing_feedrate[X_AXIS]; 
         if(homing_feedrate[Y_AXIS]<feedrate)
-          feedrate =homing_feedrate[Y_AXIS]; 
-        plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate/60, active_extruder);
+          feedrate = homing_feedrate[Y_AXIS]; 
+        plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate/60, ACTIVE_EXTRUDER);
         st_synchronize();
-    
+        
         axis_is_at_home(X_AXIS);
         axis_is_at_home(Y_AXIS);
         plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
         destination[X_AXIS] = current_position[X_AXIS];
         destination[Y_AXIS] = current_position[Y_AXIS];
-        plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate/60, active_extruder);
+        plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate/60, ACTIVE_EXTRUDER);
         feedrate = 0.0;
         st_synchronize();
         endstops_hit_on_purpose();
@@ -769,19 +985,28 @@ void process_commands()
       if(code_seen(axis_codes[X_AXIS])) 
       {
         if(code_value_long() != 0) {
-          current_position[X_AXIS]=code_value()+add_homeing[0];
+          current_position[X_AXIS] = code_value();
+          #ifdef ENABLE_ADD_HOMEING
+          current_position[X_AXIS] += add_homeing[ACTIVE_EXTRUDER][0];
+          #endif // ENABLE_ADD_HOMEING
         }
       }
-
+      
       if(code_seen(axis_codes[Y_AXIS])) {
         if(code_value_long() != 0) {
-          current_position[Y_AXIS]=code_value()+add_homeing[1];
+          current_position[Y_AXIS] = code_value();
+          #ifdef ENABLE_ADD_HOMEING
+          current_position[Y_AXIS] += add_homeing[ACTIVE_EXTRUDER][1];
+          #endif // ENABLE_ADD_HOMEING
         }
       }
-
+      
       if(code_seen(axis_codes[Z_AXIS])) {
         if(code_value_long() != 0) {
-          current_position[Z_AXIS]=code_value()+add_homeing[2];
+          current_position[Z_AXIS]=code_value();
+          #ifdef ENABLE_ADD_HOMEING
+          current_position[Z_AXIS] += add_homeing[ACTIVE_EXTRUDER][2];
+          #endif // ENABLE_ADD_HOMEING
         }
       }
       plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
@@ -805,9 +1030,9 @@ void process_commands()
       if(!code_seen(axis_codes[E_AXIS]))
         st_synchronize();
       for(int8_t i=0; i < NUM_AXIS; i++) {
-        if(code_seen(axis_codes[i])) { 
+        if(code_seen(axis_codes[i])) {
+           current_position[i] = code_value();
            if(i == E_AXIS) {
-             current_position[i] = code_value();  
              plan_set_e_position(current_position[E_AXIS]);
            }
            else {
@@ -818,18 +1043,18 @@ void process_commands()
 		copied into the SCARA axis position. */
 	     if (scara_raw_mode) {
 	       if (i == X_AXIS) {
-		 current_scara_x_position = code_value()+add_homeing[i];  
+		 current_scara_x_position = code_value();  
 	       } else if (i == Y_AXIS) {
-		 current_scara_y_position = code_value()+add_homeing[i];  
+		 current_scara_y_position = code_value();  
 	       } else {
-		 current_position[i] = code_value()+add_homeing[i];
+		 current_position[i] = code_value();
 	       }
 	       plan_set_position(current_scara_x_position, 
 				 current_scara_y_position, 
 				 current_position[Z_AXIS], 
 				 current_position[E_AXIS]);
 	     } else {
-	       current_position[i] = code_value()+add_homeing[i];  
+	       current_position[i] = code_value();  
 	       plan_set_position(current_position[X_AXIS], 
 				 current_position[Y_AXIS], 
 				 current_position[Z_AXIS], 
@@ -853,7 +1078,7 @@ void process_commands()
   {
     switch( (int)code_value() ) 
     {
-#ifdef ULTRA_LCD
+#ifdef ULTIPANEL
     case 0: // M0 - Unconditional stop - Wait for user button press on LCD
     case 1: // M1 - Conditional stop - Wait for user button press on LCD
     {
@@ -866,18 +1091,19 @@ void process_commands()
       previous_millis_cmd = millis();
       if (codenum > 0){
         codenum += millis();  // keep track of when we started waiting
-        while(millis()  < codenum && !CLICKED){
+        while(millis()  < codenum && !LCD_CLICKED){
           manage_heater();
           manage_inactivity();
-          LCD_STATUS;
+          lcd_update();
         }
       }else{
-        while(!CLICKED){
+        while(!LCD_CLICKED){
           manage_heater();
           manage_inactivity();
-          LCD_STATUS;
+          lcd_update();
         }
       }
+      LCD_MESSAGEPGM(MSG_RESUMING);
     }
     break;
 #endif
@@ -897,36 +1123,41 @@ void process_commands()
       card.ls();
       SERIAL_PROTOCOLLNPGM(MSG_END_FILE_LIST);
       break;
+      
     case 21: // M21 - init SD card
-      
       card.initsd();
-      
       break;
+      
     case 22: //M22 - release SD card
       card.release();
-
       break;
+      
     case 23: //M23 - Select file
       starpos = (strchr(strchr_pointer + 4,'*'));
       if(starpos!=NULL)
         *(starpos-1)='\0';
       card.openFile(strchr_pointer + 4,true);
       break;
+      
     case 24: //M24 - Start SD print
       card.startFileprint();
       starttime=millis();
       break;
+      
     case 25: //M25 - Pause SD print
       card.pauseSDPrint();
       break;
+      
     case 26: //M26 - Set SD index
       if(card.cardOK && code_seen('S')) {
         card.setIndex(code_value_long());
       }
       break;
+      
     case 27: //M27 - Get SD status
       card.getStatus();
       break;
+      
     case 28: //M28 - Start SD write
       starpos = (strchr(strchr_pointer + 4,'*'));
       if(starpos != NULL){
@@ -936,23 +1167,24 @@ void process_commands()
       }
       card.openFile(strchr_pointer+4,false);
       break;
+      
     case 29: //M29 - Stop SD write
       //processed in write to file routine above
-      //card,saving = false;
+      //card.saving = false;
       break;
+      
     case 30: //M30 <filename> Delete File 
-	if (card.cardOK){
-		card.closefile();
-		starpos = (strchr(strchr_pointer + 4,'*'));
-                if(starpos != NULL){
-                char* npos = strchr(cmdbuffer[bufindr], 'N');
-                strchr_pointer = strchr(npos,' ') + 1;
-                *(starpos-1) = '\0';
-         }
-	 card.removeFile(strchr_pointer + 4);
-	}
-	break;
-	
+      if(card.cardOK) {
+        card.closefile();
+        starpos = (strchr(strchr_pointer + 4,'*'));
+        if(starpos != NULL){
+          char* npos = strchr(cmdbuffer[bufindr], 'N');
+          strchr_pointer = strchr(npos,' ') + 1;
+          *(starpos-1) = '\0';
+        }
+        card.removeFile(strchr_pointer + 4);
+      }
+      break;
 #endif //SDSUPPORT
 
     case 31: //M31 take time since the start of the SD print or an M109 command
@@ -963,220 +1195,328 @@ void process_commands()
       int sec,min;
       min=t/60;
       sec=t%60;
-      sprintf(time,"%i min, %i sec",min,sec);
+      sprintf_P(time, PSTR("%i min, %i sec"), min, sec);
       SERIAL_ECHO_START;
       SERIAL_ECHOLN(time);
-      LCD_MESSAGE(time);
+      lcd_setstatus(time);
       autotempShutdown();
       }
       break;
+
     case 42: //M42 -Change pin status via gcode
       if (code_seen('S'))
       {
         int pin_status = code_value();
+        int pin_number = LED_PIN;
         if (code_seen('P') && pin_status >= 0 && pin_status <= 255)
+          pin_number = code_value();
+        for(int8_t i = 0; i < (int8_t)sizeof(sensitive_pins); i++)
         {
-          int pin_number = code_value();
-          for(int8_t i = 0; i < (int8_t)sizeof(sensitive_pins); i++)
+          if (sensitive_pins[i] == pin_number)
           {
-            if (sensitive_pins[i] == pin_number)
-            {
-              pin_number = -1;
-              break;
-            }
+            pin_number = -1;
+            break;
           }
-          
-          if (pin_number > -1)
-          {              
-            pinMode(pin_number, OUTPUT);
-            digitalWrite(pin_number, pin_status);
-            analogWrite(pin_number, pin_status);
-          }
+        }
+        if (pin_number > -1)
+        {
+          pinMode(pin_number, OUTPUT);
+          digitalWrite(pin_number, pin_status);
+          analogWrite(pin_number, pin_status);
         }
       }
      break;
+
     case 104: // M104
       if(setTargetedHotend(104)){
         break;
       }
-      if (code_seen('S')) setTargetHotend(code_value(), tmp_extruder);
+      if (code_seen('S')) { 
+        setTargetHotend(code_value(), tmp_extruder);
+        temp_adjustment = 0;
+      }
+      // Allow only one temperature adjustment lower or higher.
+      if (code_seen('L')) {
+        if(temp_adjustment >= 0) {
+          int deg = degTargetHotend(tmp_extruder);
+          deg = (deg > code_value()) ? (deg - code_value()) : 0;
+          setTargetHotend(deg, tmp_extruder);
+          temp_adjustment--;
+        } 
+        else if(temp_adjustment < 0)
+        {
+          SERIAL_ECHO_START;
+          SERIAL_ECHOLN(MSG_TEMP_ADJ_ERROR);
+          break;
+        }
+      }
+      if (code_seen('H')) {
+        if (temp_adjustment <= 0) {
+          int deg = degTargetHotend(tmp_extruder) + code_value();
+          // if heating over max value should the machine will shut down
+          setTargetHotend(deg, tmp_extruder);
+          temp_adjustment++;
+        }
+        else if(temp_adjustment > 0)
+        {
+          SERIAL_ECHO_START;
+          SERIAL_ECHOLN(MSG_TEMP_ADJ_ERROR);
+          break;
+        }
+      }
+
       setWatch();
+
+      SERIAL_ECHO_START;
+      SERIAL_ECHOPGM(MSG_TEMPERATURE_TGT);
+      SERIAL_ECHOPAIR(" T", (int)tmp_extruder);
+      SERIAL_ECHOPAIR(":", (int)(degTargetHotend(tmp_extruder) + 0.5));
+      SERIAL_ECHOLN("");
       break;
+
     case 140: // M140 set bed temp
       if (code_seen('S')) setTargetBed(code_value());
       break;
+
     case 105 : // M105
       if(setTargetedHotend(105)){
         break;
       }
-      #if (TEMP_0_PIN > -1)
-        SERIAL_PROTOCOLPGM("ok T:");
-        SERIAL_PROTOCOL_F(degHotend(tmp_extruder),1); 
-        SERIAL_PROTOCOLPGM(" /");
-        SERIAL_PROTOCOL_F(degTargetHotend(tmp_extruder),1); 
-        #if TEMP_BED_PIN > -1
-          SERIAL_PROTOCOLPGM(" B:");  
-          SERIAL_PROTOCOL_F(degBed(),1);
-          SERIAL_PROTOCOLPGM(" /");
-          SERIAL_PROTOCOL_F(degTargetBed(),1);
-        #endif //TEMP_BED_PIN
-      #else
-        SERIAL_ERROR_START;
-        SERIAL_ERRORLNPGM(MSG_ERR_NO_THERMISTORS);
-      #endif
-
-        SERIAL_PROTOCOLPGM(" @:");
-        SERIAL_PROTOCOL(getHeaterPower(tmp_extruder));  
-
-        SERIAL_PROTOCOLPGM(" B@:");
-        SERIAL_PROTOCOL(getHeaterPower(-1));  
-
-        SERIAL_PROTOCOLLN("");
-      return;
+      codenum = false;
+      if(code_seen('A') && code_value() != 0) {
+        codenum = true;
+        tmp_extruder = active_extruder;
+      }
+      SERIAL_PROTOCOLPGM("ok ");
+      printHeatersState((bool)codenum, tmp_extruder);
       break;
+
     case 109: 
     {// M109 - Wait for extruder heater to reach target.
-      if(setTargetedHotend(109)){
+      int start_e, end_e, deg;
+      if(setTargetedHotend(109)) {
         break;
       }
+      
+      bool new_mode = (code_seen('A') && code_value() > 0);
+    #if EXTRUDERS > 1
+      if ((new_mode) || (follow_me_heater)) 
+    #else // EXTRUDERS > 1
+      if (new_mode) 
+    #endif // EXTRUDERS > 1
+      {
+        start_e = 0;
+        end_e = EXTRUDERS;
+      }
+      else
+      {
+        start_e = tmp_extruder; 
+        end_e = tmp_extruder + 1;
+      }
       LCD_MESSAGEPGM(MSG_HEATING);   
-      #ifdef AUTOTEMP
-        autotemp_enabled=false;
-      #endif
-      if (code_seen('S')) setTargetHotend(code_value(), tmp_extruder);
-      #ifdef AUTOTEMP
-        if (code_seen('S')) autotemp_min=code_value();
-        if (code_seen('B')) autotemp_max=code_value();
-        if (code_seen('F')) 
-        {
-          autotemp_factor=code_value();
-          autotemp_enabled=true;
+    #ifdef AUTOTEMP
+      autotemp_enabled = false;
+    #endif
+      if (code_seen('S')) { 
+        setTargetHotend((deg = code_value()), tmp_extruder);
+        temp_adjustment = 0;
+      }
+      if (code_seen('L')) {
+        if(temp_adjustment >= 0) {
+          deg = degTargetHotend(tmp_extruder);
+          deg = (deg > code_value()) ? (deg - code_value()) : 0;
+          setTargetHotend(deg, tmp_extruder);
+          temp_adjustment--;
         }
-      #endif
+        else
+        {
+          SERIAL_ECHO_START;
+          SERIAL_ECHOLN(MSG_TEMP_ADJ_ERROR);
+          break;
+        }
+      }
+      if (code_seen('H')) {
+        if (temp_adjustment <= 0) {
+          deg = degTargetHotend(tmp_extruder) + code_value();
+          // if heating over max value should the machine will shut down
+          setTargetHotend(deg, tmp_extruder);
+          temp_adjustment++;
+        }
+        else
+        {
+          SERIAL_ECHO_START;
+          SERIAL_ECHOLN(MSG_TEMP_ADJ_ERROR);
+          break;
+        }
+      }
+
+    #ifdef AUTOTEMP
+      if (code_seen('S')) autotemp_min=deg;
+      if (code_seen('G')) autotemp_max=code_value();
+      if (code_seen('F')) 
+      {
+        autotemp_factor=code_value();
+        autotemp_enabled=true;
+      }
+    #endif
+
+      SERIAL_ECHO_START;
+      SERIAL_ECHOPGM(MSG_TEMPERATURE_TGT);
+      SERIAL_ECHOPAIR(" T", (int)tmp_extruder);
+      SERIAL_ECHOPAIR(":", (int)degTargetHotend(tmp_extruder));
+      SERIAL_ECHOLN("");
       
       setWatch();
       codenum = millis(); 
 
-      /* See if we are heating up or cooling down */
-      bool target_direction = isHeatingHotend(tmp_extruder); // true if heating, false if cooling
-
-      #ifdef TEMP_RESIDENCY_TIME
-        long residencyStart;
-        residencyStart = -1;
-        /* continue to loop until we have reached the target temp   
-          _and_ until TEMP_RESIDENCY_TIME hasn't passed since we reached it */
-        while((residencyStart == -1) ||
-              (residencyStart >= 0 && (((unsigned int) (millis() - residencyStart)) < (TEMP_RESIDENCY_TIME * 1000UL))) ) {
-      #else
-        while ( target_direction ? (isHeatingHotend(tmp_extruder)) : (isCoolingHotend(tmp_extruder)&&(CooldownNoWait==false)) ) {
-      #endif //TEMP_RESIDENCY_TIME
-          if( (millis() - codenum) > 1000UL )
-          { //Print Temp Reading and remaining time every 1 second while heating up/cooling down
-            SERIAL_PROTOCOLPGM("T:");
-            SERIAL_PROTOCOL_F(degHotend(tmp_extruder),1); 
-            SERIAL_PROTOCOLPGM(" E:");
-            SERIAL_PROTOCOL((int)tmp_extruder); 
-            #ifdef TEMP_RESIDENCY_TIME
-              SERIAL_PROTOCOLPGM(" W:");
-              if(residencyStart > -1)
-              {
-                 codenum = ((TEMP_RESIDENCY_TIME * 1000UL) - (millis() - residencyStart)) / 1000UL;
-                 SERIAL_PROTOCOLLN( codenum );
-              }
-              else 
-              {
-                 SERIAL_PROTOCOLLN( "?" );
-              }
-            #else
-              SERIAL_PROTOCOLLN("");
-            #endif
-            codenum = millis();
+    #ifdef TEMP_RESIDENCY_TIME
+      long residencyStart = -1;
+      int residencyTime = (code_seen('W')) ? code_value() : TEMP_RESIDENCY_TIME;
+    #endif //TEMP_RESIDENCY_TIME
+      bool done_temp = false;
+      while(!done_temp)
+      {
+        if((millis() - codenum) > 1000) 
+        {
+          int i;
+          // See if target extruder(s) have reached the temperature 
+          done_temp = true;
+          for(i = start_e; i < end_e; i++)
+          {
+            done_temp &= (degTargetHotend(i) == 0) || 
+                         (labs(degHotend(i) - degTargetHotend(i)) <= TEMP_WINDOW);
           }
-          manage_heater();
-          manage_inactivity();
-          LCD_STATUS;
+          printHeatersState(new_mode, tmp_extruder);
+
+          // If using old style (no A1 option) output, use echo to display all extruders info.
+        #if (EXTRUDERS > 1) || TEMP_RESIDENCY_TIME
+          SERIAL_ECHO_START;
+        #endif // (EXTRUDERS > 1) || TEMP_RESIDENCY_TIME
+        #if (EXTRUDERS > 1)
+          if(!new_mode) {
+            for(i = 0; i < EXTRUDERS; i++)
+            {
+              SERIAL_PROTOCOLPGM(" Ext");
+              SERIAL_PROTOCOL(i); 
+              SERIAL_PROTOCOLPGM(":");
+              SERIAL_PROTOCOL((int)(degHotend(i) + 0.5)); 
+            }
+          }
+        #endif
         #ifdef TEMP_RESIDENCY_TIME
-            /* start/restart the TEMP_RESIDENCY_TIME timer whenever we reach target temp for the first time
-              or when current temp falls outside the hysteresis after target temp was reached */
-          if ((residencyStart == -1 &&  target_direction && (degHotend(tmp_extruder) >= (degTargetHotend(tmp_extruder)-TEMP_WINDOW))) ||
-              (residencyStart == -1 && !target_direction && (degHotend(tmp_extruder) <= (degTargetHotend(tmp_extruder)+TEMP_WINDOW))) ||
-              (residencyStart > -1 && labs(degHotend(tmp_extruder) - degTargetHotend(tmp_extruder)) > TEMP_HYSTERESIS) ) 
+          // Print the waiting counter
+          SERIAL_PROTOCOLPGM(" Wait:");
+          if(residencyStart >= 0)
+          {
+            codenum = residencyTime - ((millis() - residencyStart) / 1000);
+            SERIAL_PROTOCOLLN(codenum);
+          }
+          else 
+          {
+            SERIAL_PROTOCOLLN("?");
+          }
+          // Logic to handle wait for temperature to stabilize
+          if(!done_temp) // Still reaching the target teperature(s)
+          {
+            residencyStart = -1;
+          }
+          else if(residencyStart < 0) // Start waiting for stabilization
           {
             residencyStart = millis();
+            done_temp = false;
           }
-        #endif //TEMP_RESIDENCY_TIME
+          else if(codenum > 0) // have to wait
+          {
+            done_temp = false;
+          }
+        #endif
+          codenum = millis();
         }
-        LCD_MESSAGEPGM(MSG_HEATING_COMPLETE);
-        starttime=millis();
-        previous_millis_cmd = millis();
+        manage_heater();
+        manage_inactivity();
+        lcd_update();
+      }
+      LCD_MESSAGEPGM(MSG_HEATING_COMPLETE);
+      starttime=millis();
+    }
+    break;
+
+    case 190: // M190 - Wait for bed heater to reach target.
+    {
+    #if TEMP_BED_PIN > -1
+      LCD_MESSAGEPGM(MSG_BED_HEATING);
+      bool new_mode = (code_seen('A') && code_value() > 0);
+      if (code_seen('S')) setTargetBed(code_value());
+      codenum = millis(); 
+      while(!isDoneHeatingBed())
+      {
+        if( (millis()-codenum) > 1000 ) //Print Temp Reading every 1 second while heating up.
+        {
+          printHeatersState(new_mode, tmp_extruder);
+          codenum = millis(); 
+        }
+        manage_heater();
+        manage_inactivity();
+        lcd_update();
+      }
+      LCD_MESSAGEPGM(MSG_BED_DONE);
+    #endif
+    }
+    break;
+
+    case 106: //M106 Fan On
+      if(setTargetedHotend(106)) {
+        break;
+      }
+      if (code_seen('S')){
+        fanSpeed[tmp_extruder] = constrain(code_value(),0,255);
+      }
+      else {
+        fanSpeed[tmp_extruder] = 255;			
+      }
+      if (code_seen('A') && code_value() != 0) {
+        for(int i=0; i < EXTRUDERS; i++) {
+          fanSpeed[i] = fanSpeed[tmp_extruder];
+        }
       }
       break;
-    case 190: // M190 - Wait for bed heater to reach target.
-    #if TEMP_BED_PIN > -1
-        LCD_MESSAGEPGM(MSG_BED_HEATING);
-        if (code_seen('S')) setTargetBed(code_value());
-        codenum = millis(); 
-        while(isHeatingBed()) 
-        {
-          if(( millis() - codenum) > 1000 ) //Print Temp Reading every 1 second while heating up.
-          {
-            float tt=degHotend(active_extruder);
-            SERIAL_PROTOCOLPGM("T:");
-            SERIAL_PROTOCOL(tt);
-            SERIAL_PROTOCOLPGM(" E:");
-            SERIAL_PROTOCOL((int)active_extruder); 
-            SERIAL_PROTOCOLPGM(" B:");
-            SERIAL_PROTOCOL_F(degBed(),1); 
-            SERIAL_PROTOCOLLN(""); 
-            codenum = millis(); 
-          }
-          manage_heater();
-          manage_inactivity();
-          LCD_STATUS;
-        }
-        LCD_MESSAGEPGM(MSG_BED_DONE);
-        previous_millis_cmd = millis();
-    #endif
-        break;
 
-    #if FAN_PIN > -1
-      case 106: //M106 Fan On
-        if (code_seen('S')){
-           FanSpeed=constrain(code_value(),0,255);
-        }
-        else {
-          FanSpeed=255;			
-        }
+    case 107: //M107 Fan Off
+      if(setTargetedHotend(107)) {
         break;
-      case 107: //M107 Fan Off
-        FanSpeed = 0;
-        break;
-    #endif //FAN_PIN
+      }
+      if (code_seen('A') && code_value() != 0) {
+        for(int i=0; i < EXTRUDERS; i++) fanSpeed[i] = 0;
+      } else {
+        fanSpeed[tmp_extruder] = 0;
+      }
+      break;
 
-    #if (PS_ON_PIN > -1)
-      case 80: // M80 - ATX Power On
-        SET_OUTPUT(PS_ON_PIN); //GND
-        WRITE(PS_ON_PIN, LOW);
-        break;
-      #endif
-      
-      case 81: // M81 - ATX Power Off
-      
+  #if (PS_ON_PIN > -1)
+    case 80: // M80 - ATX Power On
+      SET_OUTPUT(PS_ON_PIN); //GND
+      WRITE(PS_ON_PIN, PS_ON_AWAKE);
+      break;
+  #endif
+
+    case 81: // M81 - ATX Power Off
       #if defined SUICIDE_PIN && SUICIDE_PIN > -1
         st_synchronize();
         suicide();
       #elif (PS_ON_PIN > -1)
         SET_OUTPUT(PS_ON_PIN); 
-        WRITE(PS_ON_PIN, HIGH);
+        WRITE(PS_ON_PIN, PS_ON_ASLEEP);
       #endif
 		break;
         
     case 82:
       axis_relative_modes[3] = false;
       break;
+
     case 83:
       axis_relative_modes[3] = true;
       break;
+
     case 18: //compatibility
     case 84: // M84
       if(code_seen('S')){ 
@@ -1196,8 +1536,16 @@ void process_commands()
         else
         {
           st_synchronize();
+          #ifndef DUAL_X_DRIVE
           if(code_seen('X')) disable_x();
+          #else  // DUAL_X_DRIVE
+          if(code_seen('X')) { disable_x0(); disable_x1(); }
+          #endif // DUAL_X_DRIVE
+          #ifndef DUAL_Y_DRIVE
           if(code_seen('Y')) disable_y();
+          #else  // DUAL_Y_DRIVE
+          if(code_seen('Y')) { disable_y0(); disable_y1(); }
+          #endif // DUAL_Y_DRIVE
           if(code_seen('Z')) disable_z();
           #if ((E0_ENABLE_PIN != X_ENABLE_PIN) && (E1_ENABLE_PIN != Y_ENABLE_PIN)) // Only enable on boards that have seperate ENABLE_PINS
             if(code_seen('E')) {
@@ -1206,7 +1554,6 @@ void process_commands()
               disable_e2();
             }
           #endif 
-          LCD_MESSAGEPGM(MSG_PART_RELEASE);
         }
       }
       break;
@@ -1215,31 +1562,33 @@ void process_commands()
       max_inactive_time = code_value() * 1000; 
       break;
     case 92: // M92
+      if(setTargetedHotend(92)) {
+        break;
+      }
       for(int8_t i=0; i < NUM_AXIS; i++) 
       {
         if(code_seen(axis_codes[i])) 
         {
-          if(i == 3) { // E
-            float value = code_value();
-            if(value < 20.0) {
-              float factor = axis_steps_per_unit[i] / value; // increase e constants if M92 E14 is given for netfab.
-              max_e_jerk *= factor;
-              max_feedrate[i] *= factor;
-              axis_steps_per_sqr_second[i] *= factor;
-            }
-            axis_steps_per_unit[i] = value;
+          if(i == E_AXIS) { 
+            axis_steps_per_unit[i + tmp_extruder] = code_value();
           }
           else {
             axis_steps_per_unit[i] = code_value();
           }
         }
       }
+      st_synchronize();
+      // This recalculates position in steps in case user has changed steps/unit
+      plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
       break;
     case 115: // M115
       SERIAL_PROTOCOLPGM(MSG_M115_REPORT);
       break;
     case 117: // M117 display message
-      LCD_MESSAGE(cmdbuffer[bufindr]+5);
+      starpos = (strchr(strchr_pointer + 5,'*'));
+      if(starpos!=NULL)
+        *(starpos-1)='\0';
+      lcd_setstatus(strchr_pointer + 5);
       break;
     case 114: // M114
       SERIAL_PROTOCOLPGM("X:");
@@ -1248,7 +1597,7 @@ void process_commands()
       SERIAL_PROTOCOL(current_position[Y_AXIS]);
       SERIAL_PROTOCOLPGM("Z:");
       SERIAL_PROTOCOL(current_position[Z_AXIS]);
-      SERIAL_PROTOCOLPGM("E:");      
+      SERIAL_PROTOCOLPGM("E:");
       SERIAL_PROTOCOL(current_position[E_AXIS]);
       
       SERIAL_PROTOCOLPGM(MSG_COUNT_X);
@@ -1267,7 +1616,7 @@ void process_commands()
       enable_endstops(true) ;
       break;
     case 119: // M119
-    SERIAL_PROTOCOLLN(MSG_M119_REPORT);
+      SERIAL_PROTOCOLLN(MSG_M119_REPORT);
       #if (X_MIN_PIN > -1)
         SERIAL_PROTOCOLPGM(MSG_X_MIN);
         SERIAL_PROTOCOLLN(((READ(X_MIN_PIN)^X_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
@@ -1295,49 +1644,66 @@ void process_commands()
       break;
       //TODO: update for all axis, use for loop
     case 201: // M201
+      if(setTargetedHotend(201)) {
+        break;
+      }
       for(int8_t i=0; i < NUM_AXIS; i++) 
       {
-        if(code_seen(axis_codes[i]))
-        {
-          max_acceleration_units_per_sq_second[i] = code_value();
-          axis_steps_per_sqr_second[i] = code_value() * axis_steps_per_unit[i];
+        if(code_seen(axis_codes[i])) {
+          if(i == E_AXIS) {
+            max_acceleration_units_per_sq_second[i + tmp_extruder] = code_value();
+          } 
+          else {
+            max_acceleration_units_per_sq_second[i] = code_value();
+          }
         }
       }
       break;
-    #if 0 // Not used for Sprinter/grbl gen6
-    case 202: // M202
-      for(int8_t i=0; i < NUM_AXIS; i++) {
-        if(code_seen(axis_codes[i])) axis_travel_steps_per_sqr_second[i] = code_value() * axis_steps_per_unit[i];
-      }
-      break;
-    #endif
     case 203: // M203 max feedrate mm/sec
+      if(setTargetedHotend(203)) {
+        break;
+      }
       for(int8_t i=0; i < NUM_AXIS; i++) {
-        if(code_seen(axis_codes[i])) max_feedrate[i] = code_value();
+        if(code_seen(axis_codes[i])) {
+          if(i == E_AXIS) {
+            max_feedrate[i + tmp_extruder] = code_value();
+          } else {
+            max_feedrate[i] = code_value();
+          }
+        }
       }
       break;
-    case 204: // M204 acclereration S normal moves T filmanent only moves
-      {
-        if(code_seen('S')) acceleration = code_value() ;
-        if(code_seen('T')) retract_acceleration = code_value() ;
+    case 204: // M204 acclereration S normal moves R filmanent only moves
+      if(setTargetedHotend(204)) {
+        break;
       }
+      if(code_seen('S')) acceleration = code_value();
+      if(code_seen('R')) retract_acceleration[tmp_extruder] = code_value();
       break;
-    case 205: //M205 advanced settings:  minimum travel speed S=while printing T=travel only,  B=minimum segment time X= maximum xy jerk, Z=maximum Z jerk
+    case 205: // M205 advanced settings:  minimum travel speed S=while printing T=travel only,  B=minimum segment time X= maximum xy jerk, Z=maximum Z jerk
     {
+      if(setTargetedHotend(205)) {
+        break;
+      }
       if(code_seen('S')) minimumfeedrate = code_value();
-      if(code_seen('T')) mintravelfeedrate = code_value();
+      if(code_seen('V')) mintravelfeedrate = code_value();
       if(code_seen('B')) minsegmenttime = code_value() ;
       if(code_seen('X')) max_xy_jerk = code_value() ;
       if(code_seen('Z')) max_z_jerk = code_value() ;
-      if(code_seen('E')) max_e_jerk = code_value() ;
+      if(code_seen('E')) max_e_jerk[tmp_extruder] = code_value() ;
     }
     break;
+    #ifdef ENABLE_ADD_HOMEING
     case 206: // M206 additional homeing offset
+      if(setTargetedHotend(206)) {
+        break;
+      }
       for(int8_t i=0; i < 3; i++) 
       {
-        if(code_seen(axis_codes[i])) add_homeing[i] = code_value();
+        if(code_seen(axis_codes[i])) add_homeing[tmp_extruder][i] = code_value();
       }
       break;
+    #endif // ENABLE_ADD_HOMEING
     #ifdef FWRETRACT
     case 207: //M207 - set retract length S[positive mm] F[feedrate mm/sec] Z[additional zlift/hop]
     {
@@ -1365,7 +1731,6 @@ void process_commands()
         retract_recover_feedrate = code_value() ;
       }
     }break;
-    
     case 209: // M209 - S<1=true/0=false> enable automatic retract detect if the slicer did not support G10/11: every normal extrude-only move will be classified as retract depending on the direction.
     {
       if(code_seen('S')) 
@@ -1384,13 +1749,39 @@ void process_commands()
       }
       
     }break;
+    #endif // FWRETRACT
+    #if EXTRUDERS > 1
+    case 218: // M218 - set hotend offset (in mm), T<extruder_number> X<offset_on_X> Y<offset_on_Y>
+    {
+      if(setTargetedHotend(218)){
+        break;
+      }
+      if(code_seen('X')) 
+      {
+        extruder_offset[X_AXIS][tmp_extruder] = code_value();
+      }
+      if(code_seen('Y'))
+      {
+        extruder_offset[Y_AXIS][tmp_extruder] = code_value();
+      }
+      SERIAL_ECHO_START;
+      SERIAL_ECHOPGM(MSG_HOTEND_OFFSET);
+      for(tmp_extruder = 0; tmp_extruder < EXTRUDERS; tmp_extruder++) 
+      {
+         SERIAL_ECHO(" ");
+         SERIAL_ECHO(extruder_offset[X_AXIS][tmp_extruder]);
+         SERIAL_ECHO(",");
+         SERIAL_ECHO(extruder_offset[Y_AXIS][tmp_extruder]);
+      }
+      SERIAL_ECHOLN("");
+    }
+    break;
     #endif
     case 220: // M220 S<factor in percent>- set speed factor override percentage
     {
       if(code_seen('S')) 
       {
         feedmultiply = code_value() ;
-        feedmultiplychanged=true;
       }
     }
     break;
@@ -1403,51 +1794,8 @@ void process_commands()
     }
     break;
 
-    #ifdef PIDTEMP
-    case 301: // M301
-      {
-        if(code_seen('P')) Kp = code_value();
-        if(code_seen('I')) Ki = code_value()*PID_dT;
-        if(code_seen('D')) Kd = code_value()/PID_dT;
-        #ifdef PID_ADD_EXTRUSION_RATE
-        if(code_seen('C')) Kc = code_value();
-        #endif
-        updatePID();
-        SERIAL_PROTOCOL(MSG_OK);
-		SERIAL_PROTOCOL(" p:");
-        SERIAL_PROTOCOL(Kp);
-        SERIAL_PROTOCOL(" i:");
-        SERIAL_PROTOCOL(Ki/PID_dT);
-        SERIAL_PROTOCOL(" d:");
-        SERIAL_PROTOCOL(Kd*PID_dT);
-        #ifdef PID_ADD_EXTRUSION_RATE
-        SERIAL_PROTOCOL(" c:");
-        SERIAL_PROTOCOL(Kc*PID_dT);
-        #endif
-        SERIAL_PROTOCOLLN("");
-      }
-      break;
-    #endif //PIDTEMP
-    #ifdef PIDTEMPBED
-    case 304: // M304
-      {
-        if(code_seen('P')) bedKp = code_value();
-        if(code_seen('I')) bedKi = code_value()*PID_dT;
-        if(code_seen('D')) bedKd = code_value()/PID_dT;
-        updatePID();
-        SERIAL_PROTOCOL(MSG_OK);
-		SERIAL_PROTOCOL(" p:");
-        SERIAL_PROTOCOL(bedKp);
-        SERIAL_PROTOCOL(" i:");
-        SERIAL_PROTOCOL(bedKi/PID_dT);
-        SERIAL_PROTOCOL(" d:");
-        SERIAL_PROTOCOL(bedKd*PID_dT);
-        SERIAL_PROTOCOLLN("");
-      }
-      break;
-    #endif //PIDTEMP
     case 240: // M240  Triggers a camera by emulating a Canon RC-1 : http://www.doc-diy.net/photo/rc-1_hacked/
-     {
+    {
       #ifdef PHOTOGRAPH_PIN
         #if (PHOTOGRAPH_PIN > -1)
         const uint8_t NUM_PULSES=16;
@@ -1467,9 +1815,60 @@ void process_commands()
         }
         #endif
       #endif
-     }
+    }
     break;
       
+    #ifdef PIDTEMP
+    case 301: // M301
+      {
+        if(code_seen('P')) Kp = code_value();
+        if(code_seen('I')) Ki = code_value()*PID_dT;
+        if(code_seen('D')) Kd = code_value()/PID_dT;
+        #ifdef PID_ADD_EXTRUSION_RATE
+        if(code_seen('C')) Kc = code_value();
+        #endif
+        #ifdef PID_FUNCTIONAL_RANGE
+        if(code_seen('R')) Kr = code_value();
+        #endif
+        updatePID();
+        SERIAL_PROTOCOL(MSG_OK);
+        SERIAL_PROTOCOL(" p:");
+        SERIAL_PROTOCOL(Kp);
+        SERIAL_PROTOCOL(" i:");
+        SERIAL_PROTOCOL(Ki/PID_dT);
+        SERIAL_PROTOCOL(" d:");
+        SERIAL_PROTOCOL(Kd*PID_dT);
+        #ifdef PID_FUNCTIONAL_RANGE
+        SERIAL_PROTOCOL(" r:");
+        SERIAL_PROTOCOL(Kr);
+        #endif
+        #ifdef PID_ADD_EXTRUSION_RATE
+        SERIAL_PROTOCOL(" c:");
+        SERIAL_PROTOCOL(Kc*PID_dT);
+        #endif
+        SERIAL_PROTOCOLLN("");
+      }
+      break;
+    #endif //PIDTEMP
+    #ifdef PIDTEMPBED
+    case 304: // M304
+      {
+        if(code_seen('P')) bedKp = code_value();
+        if(code_seen('I')) bedKi = code_value()*PID_dT;
+        if(code_seen('D')) bedKd = code_value()/PID_dT;
+        updatePID();
+        SERIAL_PROTOCOL(MSG_OK);
+        SERIAL_PROTOCOL(" p:");
+        SERIAL_PROTOCOL(bedKp);
+        SERIAL_PROTOCOL(" i:");
+        SERIAL_PROTOCOL(bedKi/PID_dT);
+        SERIAL_PROTOCOL(" d:");
+        SERIAL_PROTOCOL(bedKd*PID_dT);
+        SERIAL_PROTOCOLLN("");
+      }
+      break;
+    #endif //PIDTEMP
+
     case 302: // allow cold extrudes
     {
       allow_cold_extrudes(true);
@@ -1481,40 +1880,423 @@ void process_commands()
       int e=0;
       int c=5;
       if (code_seen('E')) e=code_value();
-			if (e<0)
-				temp=70;
+      if (e<0) temp = 70;
       if (code_seen('S')) temp=code_value();
       if (code_seen('C')) c=code_value();
       PID_autotune(temp, e, c);
     }
     break;
+
+    #if EXTRUDERS > 1
+    case 322: // M322 set up or show follow me settings
+    {
+      int mask;
+      if(!code_seen('T')) {
+        mask = (1<<EXTRUDERS) - 1;
+      } else if(setTargetedHotend(322)) {
+        break;
+      } else {
+        mask = 1<<tmp_extruder;
+      }
+      if(code_seen('S')) {
+        st_synchronize();
+        if(code_value() == 0) {
+          follow_me &= ~mask;
+        } else {
+          follow_me |= mask;
+        }
+      }
+      follow_me &= ~(1<<ACTIVE_EXTRUDER);
+      // Bitmask of the follow me mirror mode state
+      #if defined(DUAL_X_DRIVE) || defined(DUAL_Y_DRIVE)
+      if(code_seen('R')) {
+        st_synchronize();
+        if(code_value() == 0) {
+          follow_mir &= ~mask;
+        } else {
+          follow_mir |= mask;
+        }
+      }
+      follow_mir &= follow_me;
+      #endif // defined(DUAL_X_DRIVE) || defined(DUAL_Y_DRIVE)
+      // enable/disable following active hotend temperature settings 
+      if(code_seen('H')) {
+        st_synchronize();
+        follow_me_heater = (code_value() != 0);
+      }
+      #ifdef PER_EXTRUDER_FANS
+      // enable/disable following active hotend fan speed
+      if(code_seen('F')) {
+        st_synchronize();
+        follow_me_fan = (code_value() != 0);
+      }
+      #endif // PER_EXTRUDER_FANS
+      // Print the follow me setup
+      SERIAL_ECHO_START;
+      SERIAL_ECHOPGM(MSG_FOLLOWME_MODE);
+      for(tmp_extruder = 0; tmp_extruder < EXTRUDERS; tmp_extruder++) 
+      {
+        SERIAL_ECHOPAIR(" T", (int)tmp_extruder);
+        SERIAL_ECHOPAIR(":", (follow_me & (1<<tmp_extruder)) ? "on" : "off");
+        #if defined(DUAL_X_DRIVE) || defined(DUAL_Y_DRIVE)
+        if(follow_me & follow_mir & (1<<tmp_extruder))
+        {
+          SERIAL_ECHO("/mir");
+        }
+        #endif // defined(DUAL_X_DRIVE) || defined(DUAL_Y_DRIVE)
+      }
+      SERIAL_ECHOPAIR(" H:", follow_me_heater ? "on" : "off");
+      #ifdef PER_EXTRUDER_FANS
+      SERIAL_ECHOPAIR(" F:", follow_me_fan ? "on" : "off");
+      #endif // PER_EXTRUDER_FANS
+      SERIAL_ECHOLN("");
+    }
+    break;
+    #endif // EXTRUDERS > 1
+
+    case 331: // M331 - save current position
+    {
+      int slot = 0;
+      if(code_seen('S')){
+        slot = code_value();
+      }
+      if(slot < 0 || slot >= NUM_POSITON_SLOTS) {
+        SERIAL_ECHOPAIR(MSG_INVALID_POS_SLOT, (int)NUM_POSITON_SLOTS);
+        break;
+      } 
+      memcpy(saved_position[slot], current_position, sizeof(*saved_position));
+      SERIAL_ECHO_START;
+      SERIAL_ECHO(MSG_SAVED_POS);
+      SERIAL_ECHOPAIR(" S", slot);
+      SERIAL_ECHOPAIR("<-X:", saved_position[slot][X_AXIS]);
+      SERIAL_ECHOPAIR(" Y:", saved_position[slot][Y_AXIS]);
+      SERIAL_ECHOPAIR(" Z:", saved_position[slot][Z_AXIS]);
+      SERIAL_ECHOPAIR(" E:", saved_position[slot][E_AXIS]);
+      SERIAL_ECHOLN("");
+    }
+    break;
+
+    case 332: // M332 - restore position
+    {
+      bool make_move = false;
+      int slot = 0;
+      if(code_seen('S')){
+        slot = code_value();
+      }
+      if(slot < 0 || slot >= NUM_POSITON_SLOTS) {
+        SERIAL_ECHOPAIR(MSG_INVALID_POS_SLOT, (int)NUM_POSITON_SLOTS);
+        break;
+      } 
+      SERIAL_ECHO_START;
+      SERIAL_ECHO(MSG_RESTORING_POS);
+      SERIAL_ECHOPAIR(" S", slot);
+      SERIAL_ECHO("->");
+      if(code_seen('F') && (next_feedrate = code_value()) > 0.0) {
+        feedrate = next_feedrate;
+        make_move = true;
+      }
+      for(int i=0; i< NUM_AXIS; i++) {
+        float coord = saved_position[slot][i];
+        if(code_seen(axis_codes[i]) && code_value() == 0) {
+          coord = current_position[i];
+        }
+        if(make_move) {
+          destination[i] = coord;
+        }
+        else {
+          current_position[i] = coord;
+          if(i == E_AXIS) {
+            plan_set_e_position(current_position[E_AXIS]);
+          }
+          else {
+            plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+          }
+        }
+        SERIAL_ECHOPAIR(" ", axis_codes[i]);
+        SERIAL_ECHOPAIR(":", coord);
+      }
+      SERIAL_ECHOLN("");
+      if(make_move) {
+        if (scara_raw_mode) {
+          prepare_cartesian_move();
+        } else {
+          prepare_scara_move();
+        }
+        st_synchronize();
+      }
+    }
+    break;
+    
+    #ifdef C_COMPENSATION
+    case 340: // M340 configure filament compression compensation table
+    {
+      if(setTargetedHotend(340)){
+        break;
+      }
+      int pos;
+      if(code_seen('P')) {
+        pos = code_value();
+        if(pos < 0 || pos >= gCComp_max_size) {
+          SERIAL_ECHO_START;
+          SERIAL_ECHO(MSG_CCOMP_INVALID_POS " ");
+          SERIAL_ECHOLN(pos);
+          break;
+        }
+        if(code_seen('S')) {
+          gCComp[pos][tmp_extruder][0] = code_value();
+        }
+        if(code_seen('C')) {
+          gCComp[pos][tmp_extruder][1] = code_value();
+        }
+        // Figure out the compensation table size
+        int size;
+        for(size = 0; 
+            size < gCComp_max_size && gCComp[size][tmp_extruder][0] > 0.0;
+            size++);
+        gCComp_size[tmp_extruder] = size;
+      }
+      if(code_seen('R')) {
+        gCCom_min_speed[tmp_extruder] = code_value();
+      }
+      // Print the compensation table
+      SERIAL_ECHO_START;
+      SERIAL_ECHOLN(MSG_CCOMP_TABLE);
+      SERIAL_ECHO_START;
+      SERIAL_ECHOPAIR("T:", (int)tmp_extruder);
+      SERIAL_ECHOPAIR(" R:", gCCom_min_speed[tmp_extruder]);
+      SERIAL_ECHOLN("");
+      for(pos = 0; pos < gCComp_size[tmp_extruder]; pos++) 
+      {
+         SERIAL_ECHO_START;
+         SERIAL_ECHO(pos);
+         SERIAL_ECHOPAIR(": S:", gCComp[pos][tmp_extruder][0]);
+         SERIAL_ECHOPAIR(" C:", gCComp[pos][tmp_extruder][1]);
+         SERIAL_ECHOLN("");
+      }
+    }
+    break;
+    #endif // C_COMPENSATION
+    
+    #ifdef ENABLE_MICROSTEPPING_CONTROL
+    case 350: // M350 Set microstepping mode. Warning: Steps per unit remains unchanged. S code sets stepping mode for all drivers.
+    {
+        if(code_seen('S')) for(int i=0;i<=4;i++) microstep_mode(i,code_value()); 
+        for(int i=0;i<=NUM_AXIS;i++) if(code_seen(axis_codes[i])) microstep_mode(i,(uint8_t)code_value());
+        if(code_seen('B')) microstep_mode(4,code_value());
+        microstep_readings();
+    }
+    break;
+    case 351: // M351 Toggle MS1 MS2 pins directly, S# determines MS1 or MS2, X# sets the pin high/low.
+    {
+      if(code_seen('S')) switch((int)code_value())
+      {
+        case 1:
+          for(int i=0;i<=NUM_AXIS;i++) if(code_seen(axis_codes[i])) microstep_ms(i,code_value(),-1);
+          if(code_seen('B')) microstep_ms(4,code_value(),-1);
+          break;
+        case 2:
+          for(int i=0;i<=NUM_AXIS;i++) if(code_seen(axis_codes[i])) microstep_ms(i,-1,code_value());
+          if(code_seen('B')) microstep_ms(4,-1,code_value());
+          break;
+      }
+      microstep_readings();
+    }
+    break;
+    #endif // ENABLE_MICROSTEPPING_CONTROL
     case 400: // M400 finish all moves
     {
       st_synchronize();
     }
     break;
-    case 500: // Store settings in EEPROM
+    case 500: // M500 Store settings in EEPROM
     {
         Config_StoreSettings();
     }
     break;
-    case 501: // Read settings from EEPROM
+    case 501: // M501 Read settings from EEPROM
     {
         Config_RetrieveSettings();
     }
     break;
-    case 502: // Revert to default settings
+    case 502: // M502 Revert to default settings
     {
         Config_ResetDefault();
     }
     break;
-    case 503: // print settings currently in memory
+    case 503: // M503 print settings currently in memory
     {
         Config_PrintSettings();
     }
     break;
-    case 999: // Restart after being stopped
+    #ifdef ENABLE_DEBUG
+    case 504: // set debug flags
+    {
+      if(code_seen('S')) 
+      {
+        debug_flags = code_value();
+      }
+      if(code_seen('P')) 
+      {
+        if((((unsigned short)code_value()) & DEBUG_PRINT_PLAN) != 0) {
+          planner_print_plan();
+        }
+      }
+      SERIAL_ECHO_START;
+      SERIAL_ECHO(MSG_DBG_FLAG);
+      SERIAL_ECHOLN(debug_flags);
+    }
+    break;
+    #endif // ENABLE_DEBUG
+    #ifdef ABORT_ON_ENDSTOP_HIT_FEATURE_ENABLED
+    case 540:
+    {
+      if(code_seen('S')) abort_on_endstop_hit = code_value() > 0;
+    }
+    break;
+    #endif
+    #ifdef FILAMENTCHANGEENABLE
+    case 600: //Pause for filament change X[pos] Y[pos] Z[relative lift] E[initial retract] L[later retract distance for removal]
+    {
+        float target[4];
+        float lastpos[4];
+        target[X_AXIS]=current_position[X_AXIS];
+        target[Y_AXIS]=current_position[Y_AXIS];
+        target[Z_AXIS]=current_position[Z_AXIS];
+        target[E_AXIS]=current_position[E_AXIS];
+        lastpos[X_AXIS]=current_position[X_AXIS];
+        lastpos[Y_AXIS]=current_position[Y_AXIS];
+        lastpos[Z_AXIS]=current_position[Z_AXIS];
+        lastpos[E_AXIS]=current_position[E_AXIS];
+        //retract by E
+        if(code_seen('E')) 
+        {
+          target[E_AXIS]+= code_value();
+        }
+        else
+        {
+          #ifdef FILAMENTCHANGE_FIRSTRETRACT
+            target[E_AXIS]+= FILAMENTCHANGE_FIRSTRETRACT ;
+          #endif
+        }
+        plan_buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder);
+        
+        //lift Z
+        if(code_seen('Z')) 
+        {
+          target[Z_AXIS]+= code_value();
+        }
+        else
+        {
+          #ifdef FILAMENTCHANGE_ZADD
+            target[Z_AXIS]+= FILAMENTCHANGE_ZADD ;
+          #endif
+        }
+        plan_buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder);
+        
+        //move xy
+        if(code_seen('X')) 
+        {
+          target[X_AXIS]+= code_value();
+        }
+        else
+        {
+          #ifdef FILAMENTCHANGE_XPOS
+            target[X_AXIS]= FILAMENTCHANGE_XPOS ;
+          #endif
+        }
+        if(code_seen('Y')) 
+        {
+          target[Y_AXIS]= code_value();
+        }
+        else
+        {
+          #ifdef FILAMENTCHANGE_YPOS
+            target[Y_AXIS]= FILAMENTCHANGE_YPOS ;
+          #endif
+        }
+        
+        plan_buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder);
+        
+        if(code_seen('L'))
+        {
+          target[E_AXIS]+= code_value();
+        }
+        else
+        {
+          #ifdef FILAMENTCHANGE_FINALRETRACT
+            target[E_AXIS]+= FILAMENTCHANGE_FINALRETRACT ;
+          #endif
+        }
+        
+        plan_buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder);
+        
+        //finish moves
+        st_synchronize();
+        //disable extruder steppers so filament can be removed
+        disable_e0();
+        disable_e1();
+        disable_e2();
+        delay(100);
+        LCD_ALERTMESSAGEPGM(MSG_FILAMENTCHANGE);
+        uint8_t cnt=0;
+        while(!LCD_CLICKED){
+          cnt++;
+          manage_heater();
+          manage_inactivity();
+          lcd_update();
+          
+          #if BEEPER > -1
+          if(cnt==0)
+          {
+            SET_OUTPUT(BEEPER);
+            
+            WRITE(BEEPER,HIGH);
+            delay(3);
+            WRITE(BEEPER,LOW);
+            delay(3);
+          }
+          #endif
+        }
+        
+        //return to normal
+        if(code_seen('L')) 
+        {
+          target[E_AXIS]+= -code_value();
+        }
+        else
+        {
+          #ifdef FILAMENTCHANGE_FINALRETRACT
+            target[E_AXIS]+=(-1)*FILAMENTCHANGE_FINALRETRACT ;
+          #endif
+        }
+        current_position[E_AXIS]=target[E_AXIS]; //the long retract of L is compensated by manual filament feeding
+        plan_set_e_position(current_position[E_AXIS]);
+        plan_buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder); //should do nothing
+        plan_buffer_line(lastpos[X_AXIS], lastpos[Y_AXIS], target[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder); //move xy back
+        plan_buffer_line(lastpos[X_AXIS], lastpos[Y_AXIS], lastpos[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder); //move z back
+        plan_buffer_line(lastpos[X_AXIS], lastpos[Y_AXIS], lastpos[Z_AXIS], lastpos[E_AXIS], feedrate/60, active_extruder); //final untretract
+    }
+    break;
+    #endif //FILAMENTCHANGEENABLE    
+    #ifdef ENABLE_DIGITAL_POT_CONTROL
+    case 907: // M907 Set digital trimpot motor current using axis codes.
+    {
+        for(int i=0;i<=NUM_AXIS;i++) if(code_seen(axis_codes[i])) digipot_current(i,code_value());
+        if(code_seen('B')) digipot_current(4,code_value());
+        if(code_seen('S')) for(int i=0;i<=4;i++) digipot_current(i,code_value());
+    }
+    case 908: // M908 Control digital trimpot directly.
+    {
+        uint8_t channel,current;
+        if(code_seen('P')) channel=code_value();
+        if(code_seen('S')) current=code_value();
+        digitalPotWrite(channel, current);
+    }
+    break;
+    #endif // ENABLE_DIGITAL_POT_CONTROL
+    case 999: // M999: Restart after being stopped
       Stopped = false;
+      lcd_reset_alert_level();
       gcode_LastN = Stopped_gcode_LastN;
       FlushSerialRequestResend();
     break;
@@ -1523,22 +2305,42 @@ void process_commands()
 
   else if(code_seen('T')) 
   {
-    tmp_extruder = code_value();
+    // By default E axis is set to the coordinate of the selected extruder
+    uint8_t start_from_extruder = tmp_extruder = code_value();
+    if(code_seen('S')) {
+      start_from_extruder = code_value();
+    }
     if(tmp_extruder >= EXTRUDERS) {
       SERIAL_ECHO_START;
       SERIAL_ECHO("T");
-      SERIAL_ECHO(tmp_extruder);
-      SERIAL_ECHOLN(MSG_INVALID_EXTRUDER);
+      SERIAL_ECHO(((int)tmp_extruder));
+      SERIAL_ECHOLN(" " MSG_INVALID_EXTRUDER);
+    }
+    else if(start_from_extruder >= EXTRUDERS) {
+      SERIAL_ECHO_START;
+      SERIAL_ECHO("S");
+      SERIAL_ECHO(((int)start_from_extruder));
+      SERIAL_ECHOLN(" " MSG_INVALID_EXTRUDER);
     }
     else {
-      active_extruder = tmp_extruder;
+      boolean make_move = false;
+      if(code_seen('F')) {
+        make_move = true;
+        next_feedrate = code_value();
+        if(next_feedrate > 0.0) {
+          feedrate = next_feedrate;
+        }
+      }
+      #if EXTRUDERS > 1
+      set_active_extruder(tmp_extruder, start_from_extruder, make_move);
+      #endif
       SERIAL_ECHO_START;
       SERIAL_ECHO(MSG_ACTIVE_EXTRUDER);
-      SERIAL_PROTOCOLLN((int)active_extruder);
+      SERIAL_ECHOLN(((int)active_extruder));
     }
   }
 
-  else
+  else // Command letter unrecognized
   {
     SERIAL_ECHO_START;
     SERIAL_ECHOPGM(MSG_UNKNOWN_COMMAND);
@@ -1555,6 +2357,7 @@ void FlushSerialRequestResend()
   MYSERIAL.flush();
   SERIAL_PROTOCOLPGM(MSG_RESEND);
   SERIAL_PROTOCOLLN(gcode_LastN + 1);
+  recovery_count = buflen + 1; // Give it a chance to grind through stuff received after the error
   ClearToSend();
 }
 
@@ -1650,15 +2453,15 @@ void clamp_to_software_endstops(float target[3])
 {
   if (min_software_endstops) {
     // Limits do not make sense for platter axis
-    //if (target[X_AXIS] < min_pos[X_AXIS]) target[X_AXIS] = min_pos[X_AXIS];
-    if (target[Y_AXIS] < min_pos[Y_AXIS]) target[Y_AXIS] = min_pos[Y_AXIS];
-    if (target[Z_AXIS] < min_pos[Z_AXIS]) target[Z_AXIS] = min_pos[Z_AXIS];
+    //if (target[X_AXIS] < X_MIN_POS) target[X_AXIS] = X_MIN_POS;
+    if (target[Y_AXIS] < Y_MIN_POS) target[Y_AXIS] = Y_MIN_POS;
+    if (target[Z_AXIS] < Z_MIN_POS) target[Z_AXIS] = Z_MIN_POS;
   }
 
   if (max_software_endstops) {
-    //if (target[X_AXIS] > max_pos[X_AXIS]) target[X_AXIS] = max_pos[X_AXIS];
-    if (target[Y_AXIS] > max_pos[Y_AXIS]) target[Y_AXIS] = max_pos[Y_AXIS];
-    if (target[Z_AXIS] > max_pos[Z_AXIS]) target[Z_AXIS] = max_pos[Z_AXIS];
+    //if (target[X_AXIS] > X_MAX_POS) target[X_AXIS] = X_MAX_POS;
+    if (target[Y_AXIS] > Y_MAX_POS) target[Y_AXIS] = Y_MAX_POS;
+    if (target[Z_AXIS] > Z_MAX_POS) target[Z_AXIS] = Z_MAX_POS;
   }
 }
 
@@ -1833,6 +2636,7 @@ void manage_inactivity()
     if( (millis() - previous_millis_cmd) >  stepper_inactive_time ) 
     {
       if(blocks_queued() == false) {
+        st_synchronize();
         disable_x();
         disable_y();
         disable_z();
@@ -1842,32 +2646,35 @@ void manage_inactivity()
       }
     }
   }
+
   #if( KILL_PIN>-1 )
-    if( 0 == READ(KILL_PIN) )
-      kill();
+  if( 0 == READ(KILL_PIN) )
+    kill();
   #endif
   #ifdef CONTROLLERFAN_PIN
-    controllerFan(); //Check if fan should be turned on to cool stepper drivers down
+  controllerFan(); //Check if fan should be turned on to cool stepper drivers down
   #endif
-  #ifdef EXTRUDER_RUNOUT_PREVENT
-    if( (millis() - previous_millis_cmd) >  EXTRUDER_RUNOUT_SECONDS*1000 ) 
-    if(degHotend(active_extruder)>EXTRUDER_RUNOUT_MINTEMP)
+
+  #ifdef EXTRUDER_RUNOUT_PREVENT && (EXTRUDERS == 1) 
+  if( (millis() - previous_millis_cmd) >  EXTRUDER_RUNOUT_SECONDS * 1000 ) 
+    if(degHotend(0) > EXTRUDER_RUNOUT_MINTEMP)
     {
-     bool oldstatus=READ(E0_ENABLE_PIN);
-     enable_e0();
-     float oldepos=current_position[E_AXIS];
-     float oldedes=destination[E_AXIS];
-     plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], 
-                      current_position[E_AXIS]+EXTRUDER_RUNOUT_EXTRUDE*EXTRUDER_RUNOUT_ESTEPS/axis_steps_per_unit[E_AXIS], 
-                      EXTRUDER_RUNOUT_SPEED/60.*EXTRUDER_RUNOUT_ESTEPS/axis_steps_per_unit[E_AXIS], active_extruder);
-     current_position[E_AXIS]=oldepos;
-     destination[E_AXIS]=oldedes;
-     plan_set_e_position(oldepos);
-     previous_millis_cmd=millis();
-     st_synchronize();
-     WRITE(E0_ENABLE_PIN,oldstatus);
+      bool oldstatus=READ(E0_ENABLE_PIN);
+      enable_e0();
+      float oldepos=current_position[E_AXIS];
+      float oldedes=destination[E_AXIS];
+      plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], 
+                       current_position[E_AXIS]+EXTRUDER_RUNOUT_EXTRUDE*EXTRUDER_RUNOUT_ESTEPS/axis_steps_per_unit[E_AXIS], 
+                       EXTRUDER_RUNOUT_SPEED/60.*EXTRUDER_RUNOUT_ESTEPS/axis_steps_per_unit[E_AXIS], active_extruder);
+      current_position[E_AXIS]=oldepos;
+      destination[E_AXIS]=oldedes;
+      plan_set_e_position(oldepos);
+      previous_millis_cmd=millis();
+      st_synchronize();
+      WRITE(E0_ENABLE_PIN,oldstatus);
     }
-  #endif
+  #endif // EXTRUDER_RUNOUT_PREVENT && (EXTRUDERS == 1)
+  
   check_axes_activity();
 }
 
@@ -1876,8 +2683,18 @@ void kill()
   cli(); // Stop interrupts
   disable_heater();
 
+  #ifndef DUAL_X_DRIVE
   disable_x();
+  #else  // DUAL_X_DRIVE
+  disable_x0();
+  disable_x1();
+  #endif // DUAL_X_DRIVE
+  #ifndef DUAL_Y_DRIVE
   disable_y();
+  #else  // DUAL_Y_DRIVE
+  disable_y0();
+  disable_y1();
+  #endif // DUAL_Y_DRIVE
   disable_z();
   disable_e0();
   disable_e1();
@@ -1915,7 +2732,7 @@ void setPwmFrequency(uint8_t pin, int val)
     #if defined(TCCR0A)
     case TIMER0A:
     case TIMER0B:
-//         TCCR0B &= ~(CS00 | CS01 | CS02);
+//         TCCR0B &= ~(_BV(CS00) | _BV(CS01) | _BV(CS02));
 //         TCCR0B |= val;
          break;
     #endif
@@ -1923,7 +2740,7 @@ void setPwmFrequency(uint8_t pin, int val)
     #if defined(TCCR1A)
     case TIMER1A:
     case TIMER1B:
-//         TCCR1B &= ~(CS10 | CS11 | CS12);
+//         TCCR1B &= ~(_BV(CS10) | _BV(CS11) | _BV(CS12));
 //         TCCR1B |= val;
          break;
     #endif
@@ -1931,7 +2748,7 @@ void setPwmFrequency(uint8_t pin, int val)
     #if defined(TCCR2)
     case TIMER2:
     case TIMER2:
-         TCCR2 &= ~(CS10 | CS11 | CS12);
+         TCCR2 &= ~(_BV(CS10) | _BV(CS11) | _BV(CS12));
          TCCR2 |= val;
          break;
     #endif
@@ -1939,7 +2756,7 @@ void setPwmFrequency(uint8_t pin, int val)
     #if defined(TCCR2A)
     case TIMER2A:
     case TIMER2B:
-         TCCR2B &= ~(CS20 | CS21 | CS22);
+         TCCR2B &= ~(_BV(CS20) | _BV(CS21) | _BV(CS22));
          TCCR2B |= val;
          break;
     #endif
@@ -1948,7 +2765,7 @@ void setPwmFrequency(uint8_t pin, int val)
     case TIMER3A:
     case TIMER3B:
     case TIMER3C:
-         TCCR3B &= ~(CS30 | CS31 | CS32);
+         TCCR3B &= ~(_BV(CS30) | _BV(CS31) | _BV(CS32));
          TCCR3B |= val;
          break;
     #endif
@@ -1957,16 +2774,16 @@ void setPwmFrequency(uint8_t pin, int val)
     case TIMER4A:
     case TIMER4B:
     case TIMER4C:
-         TCCR4B &= ~(CS40 | CS41 | CS42);
+         TCCR4B &= ~(_BV(CS40) | _BV(CS41) | _BV(CS42));
          TCCR4B |= val;
          break;
-   #endif
+    #endif
 
     #if defined(TCCR5A) 
     case TIMER5A:
     case TIMER5B:
     case TIMER5C:
-         TCCR5B &= ~(CS50 | CS51 | CS52);
+         TCCR5B &= ~(_BV(CS50) | _BV(CS51) | _BV(CS52));
          TCCR5B |= val;
          break;
    #endif
@@ -1981,17 +2798,8 @@ bool setTargetedHotend(int code){
     tmp_extruder = code_value();
     if(tmp_extruder >= EXTRUDERS) {
       SERIAL_ECHO_START;
-      switch(code){
-        case 104:
-          SERIAL_ECHO(MSG_M104_INVALID_EXTRUDER);
-          break;
-        case 105:
-          SERIAL_ECHO(MSG_M105_INVALID_EXTRUDER);
-          break;
-        case 109:
-          SERIAL_ECHO(MSG_M109_INVALID_EXTRUDER);
-          break;
-      }
+      SERIAL_ECHOPAIR("M", code);
+      SERIAL_ECHO(" " MSG_INVALID_EXTRUDER " ");
       SERIAL_ECHOLN(tmp_extruder);
       return true;
     }

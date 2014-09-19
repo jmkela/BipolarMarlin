@@ -37,12 +37,17 @@ typedef struct {
   long acceleration_rate;                   // The acceleration rate used for acceleration calculation
   unsigned char direction_bits;             // The direction bit set for this block (refers to *_DIRECTION_BIT in config.h)
   unsigned char active_extruder;            // Selects the active extruder
-  #ifdef ADVANCE
-    long advance_rate;
-    volatile long initial_advance;
-    volatile long final_advance;
-    float advance;
-  #endif
+  bool retract;                             // Identified as retract move block (not yet used)
+  bool restore;                             // Identified as return move block
+  bool travel;                              // Identified as travel move block
+  #ifdef C_COMPENSATION
+    long initial_advance;                   // Steps to be ahead when entering the block
+    long target_advance;                    // Steps to be ahead when done accelerating
+    long final_advance;                     // Steps to be ahead when done with the block
+    long prev_advance;                      // Filled with final_advance of the prev block
+    long next_advance;                      // Filled with initial_advance of the next block
+    unsigned short advance_step_rate;       // How fast to advance in this block
+  #endif // C_COMPENSATION
 
   // Fields used by the motion planner to manage acceleration
 //  float speed_x, speed_y, speed_z, speed_e;        // Nominal mm/sec for each axis
@@ -59,7 +64,7 @@ typedef struct {
   unsigned long initial_rate;                        // The jerk-adjusted step rate at start of block  
   unsigned long final_rate;                          // The minimal rate at exit
   unsigned long acceleration_st;                     // acceleration steps/sec^2
-  unsigned long fan_speed;
+  unsigned char fan_speed;                           // fan speed at the block
   volatile char busy;
 } block_t;
 
@@ -74,23 +79,24 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
 void plan_set_position(const float &x, const float &y, const float &z, const float &e);
 void plan_set_e_position(const float &e);
 
-
+#ifdef ENABLE_DEBUG
+void planner_print_plan();
+#endif
 
 void check_axes_activity();
 uint8_t movesplanned(); //return the nr of buffered moves
 
 extern unsigned long minsegmenttime;
-extern float max_feedrate[4]; // set the max speeds
-extern float axis_steps_per_unit[4];
-extern unsigned long max_acceleration_units_per_sq_second[4]; // Use M201 to override by software
+extern float max_feedrate[3 + EXTRUDERS]; // set the max speeds
+extern float axis_steps_per_unit[3 + EXTRUDERS];
+extern unsigned long max_acceleration_units_per_sq_second[3 + EXTRUDERS]; // Use M201 to override by software
 extern float minimumfeedrate;
 extern float acceleration;         // Normal acceleration mm/s^2  THIS IS THE DEFAULT ACCELERATION for all moves. M204 SXXXX
-extern float retract_acceleration; //  mm/s^2   filament pull-pack and push-forward  while standing still in the other axis M204 TXXXX
+extern float retract_acceleration[EXTRUDERS]; // mm/s^2, per extruder filament pull-pack and push-forward  while standing still in the other axis M204 TXXXX
+extern float max_e_jerk[EXTRUDERS]; // mm/s - initial speed for extruder retract moves
 extern float max_xy_jerk; //speed than can be stopped at once, if i understand correctly.
 extern float max_z_jerk;
-extern float max_e_jerk;
 extern float mintravelfeedrate;
-extern unsigned long axis_steps_per_sqr_second[NUM_AXIS];
 
 #ifdef AUTOTEMP
     extern bool autotemp_enabled;
@@ -125,14 +131,29 @@ FORCE_INLINE block_t *plan_get_current_block()
   return(block);
 }
 
-// Gets the current block. Returns NULL if buffer empty
+// Returns true if there are blocks to process
 FORCE_INLINE bool blocks_queued() 
 {
   if (block_buffer_head == block_buffer_tail) { 
     return false; 
   }
-  else
-    return true;
+  return true;
+}
+
+// Returns true if there is only one block in the queue
+FORCE_INLINE bool is_last_block() 
+{
+  if (block_buffer_head == (block_buffer_tail+1) & (BLOCK_BUFFER_SIZE-1)) { 
+    return true; 
+  }
+  return false;
+}
+
+// Returns number of blocks queued
+FORCE_INLINE int num_blocks_queued()
+{
+  return (block_buffer_head-block_buffer_tail + BLOCK_BUFFER_SIZE) & 
+         (BLOCK_BUFFER_SIZE - 1);
 }
 
 void allow_cold_extrudes(bool allow);
