@@ -87,12 +87,12 @@
 // 55 is 100k thermistor - ATC Semitec 104GT-2 (Used in ParCan) (1k pullup)
 
 #define TEMP_SENSOR_0 7
-#define TEMP_SENSOR_1 0
+#define TEMP_SENSOR_1 7
 #define TEMP_SENSOR_2 0
 #define TEMP_SENSOR_BED 1
 
 // Actual temperature must be close to target for this long before M109 returns success
-#define TEMP_RESIDENCY_TIME 30  // (seconds)
+#define TEMP_RESIDENCY_TIME 20  // (seconds)
 #define TEMP_WINDOW 3           // (C) range of +/- temperatures considered "close" enough to the target one 
                                 // (i.e. M109 will consider the temp reached if withing that range)
 #define TEMP_WINDOW_BED 2       // (C) range of +/- temperatures considered "close" enough for bed
@@ -261,7 +261,7 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 // uncomment the appropriate define and uncomment/use paramters with X0/X1/Y0/Y1 
 // instead of X/Y in their name (those are dual drive specific).
 //#define DUAL_X_DRIVE
-//#define DUAL_Y_DRIVE
+#define DUAL_Y_DRIVE
 
 // For Inverting Stepper Enable Pins (Active Low) use 0, Non Inverting (Active High) use 1
 #define X_ENABLE_ON 0 // For all X drives
@@ -280,9 +280,9 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 #define INVERT_X_DIR false     // X axis motor direction, for Mendel set to false, for Orca set to true
 //#define INVERT_X0_DIR false  // X axis first motor direction, for Mendel set to false, for Orca set to true
 //#define INVERT_X1_DIR true   // X axis second motor direction
-#define INVERT_Y_DIR true      // Y axis motor direction, for Mendel set to true, for Orca set to false
-//#define INVERT_Y0_DIR false  // Y first motor direction, for Mendel set to true, for Orca set to false
-//#define INVERT_Y1_DIR true   // Y second motor direction
+//#define INVERT_Y_DIR true      // Y axis motor direction, for Mendel set to true, for Orca set to false
+#define INVERT_Y0_DIR true   // Y first motor direction, for Mendel set to true, for Orca set to false
+#define INVERT_Y1_DIR true   // Y second motor direction
 #define INVERT_Z_DIR true    // for Mendel set to false, for Orca set to true
 #define INVERT_E0_DIR false  // for direct drive extruder v9 set to true, for geared extruder set to false
 #define INVERT_E1_DIR false  // for direct drive extruder v9 set to true, for geared extruder set to false
@@ -294,9 +294,9 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 #define X_HOME_DIR  -1    // X axis homing direction
 //#define X0_HOME_DIR -1  // first motor X axis homing direction
 //#define X1_HOME_DIR  1  // second motor X axis homing direction
-#define Y_HOME_DIR 1      // Y axis homing direction
-//#define Y0_HOME_DIR -1  // first motor Y axis homing direction
-//#define Y1_HOME_DIR  1  // second motor Y axis homing direction
+//#define Y_HOME_DIR 1      // Y axis homing direction
+#define Y0_HOME_DIR  1  // first motor Y axis homing direction
+#define Y1_HOME_DIR  1  // second motor Y axis homing direction
 #define Z_HOME_DIR -1
 
 #define min_software_endstops false  //If true, axis won't move to coordinates less than HOME_POS.
@@ -310,12 +310,12 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 #define X_MIN_POS 0
 //#define X0_MIN_POS -35
 //#define X1_MIN_POS 10
-#define Y_MAX_POS 47.4
-//#define Y0_MAX_POS 200
-//#define Y1_MAX_POS 200
-#define Y_MIN_POS 0
-//#define Y0_MIN_POS 0
-//#define Y1_MIN_POS 0
+//#define Y_MAX_POS 47.4
+#define Y0_MAX_POS 47.4
+#define Y1_MAX_POS 47.4
+//#define Y_MIN_POS 0
+#define Y0_MIN_POS 0
+#define Y1_MIN_POS 0
 #define Z_MAX_POS 150
 #define Z_MIN_POS 0
 
@@ -323,8 +323,8 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 #define X_MAX_LENGTH (X_MAX_POS - X_MIN_POS) 
 // #define X_MAX_LENGTH (X1_MAX_POS - X0_MIN_POS) 
 // #define X_MAX_LENGTH (X0_MAX_POS - X1_MIN_POS) 
-#define Y_MAX_LENGTH (Y_MAX_POS - Y_MIN_POS)
-// #define Y_MAX_LENGTH (Y1_MAX_POS - Y0_MIN_POS)
+// #define Y_MAX_LENGTH (Y_MAX_POS - Y_MIN_POS)
+#define Y_MAX_LENGTH (Y1_MAX_POS - Y0_MIN_POS)
 // #define Y_MAX_LENGTH (Y0_MAX_POS - Y1_MIN_POS)
 #define Z_MAX_LENGTH (Z_MAX_POS - Z_MIN_POS)
 
@@ -342,8 +342,8 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 #define MANUAL_Z_HOME_POS 0
 
 //// MOVEMENT SETTINGS
-#define NUM_AXIS 4 // The axis order in all axis related arrays is θ₁, θ₂, Z, E
-#define HOMING_FEEDRATE {4*60, 4*60, 4*60, 0}  // set the homing speeds (mm/min)
+#define NUM_AXIS 5 // The axis order in all axis related arrays is θ₁, θ₂, Z, E
+#define HOMING_FEEDRATE {4*60, 4*60, 4*60, 0, 0}  // set the homing speeds (mm/min)
 
 // Homing hits the endstop, then retracts by this distance, before it tries to slowly bump again.
 // For dual drives on an axis the same value is used for both drives.
@@ -357,8 +357,8 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 // Note: the extruder offset for multiple extruder machines with dual drive on an axis should be set to 0 
 //       for that axis. On that axis the positioning is controlled by the the coordinates of the homing 
 //       switches (i.e. *_MAX_POS/*_MIN_POS or MANUAL_*_HOME_POS if MANUAL_HOME_POSITIONS if defined).
-#define EXTRUDER_OFFSET_X {0.0, 20.0} // (in mm) per extruder, offset of the extruder on the X axis
-#define EXTRUDER_OFFSET_Y {0.0, 0.0} // (in mm) per extruder, offset of the extruder on the Y axis
+#define EXTRUDER_OFFSET_X {0.0, 180.0} // (in degrees) per extruder, offset of the extruder on the X axis
+#define EXTRUDER_OFFSET_Y {0.0, 0.0}   // (in mm) per extruder, offset of the extruder on the Y axis
 
 // default settings 
 // Units are degrees for θ₁,θ₂ and mm for Z,E

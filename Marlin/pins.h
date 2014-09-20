@@ -352,9 +352,19 @@
 #define X_MIN_PIN           -1	//3
 #define X_MAX_PIN           -1   //2 //Max endstops default to disabled "-1", set to commented value to enable.
 
-#define Y_STEP_PIN         60
-#define Y_DIR_PIN          61
-#define Y_ENABLE_PIN       56
+#ifndef DUAL_Y_DRIVE
+#  define Y_STEP_PIN       60
+#  define Y_DIR_PIN        61
+#  define Y_ENABLE_PIN     56
+#else  // DUAL_Y_DRIVE
+#  define Y0_STEP_PIN      60
+#  define Y0_DIR_PIN       61
+#  define Y0_ENABLE_PIN    56
+#  define Y1_STEP_PIN      17
+#  define Y1_DIR_PIN       23
+#  define Y1_ENABLE_PIN    16
+#endif
+
 #define Y_MIN_PIN          -1	//14
 #define Y_MAX_PIN          15   //15
 

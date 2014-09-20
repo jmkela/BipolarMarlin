@@ -41,7 +41,7 @@ HARDWARE_MOTHERBOARD ?= 34
 
 # Arduino source install directory, and version number
 ARDUINO_INSTALL_DIR  ?= /usr/share/arduino/
-ARDUINO_VERSION      ?= 105
+ARDUINO_VERSION      ?= 106
 
 # You can optionally set a path to the avr-gcc tools. Requires a trailing slash. (ex: /usr/local/avr-gcc/bin)
 AVR_TOOLS_PATH ?= 
@@ -49,7 +49,7 @@ AVR_TOOLS_PATH ?=
 #Programmer configuration
 UPLOAD_RATE        ?= 115200
 AVRDUDE_PROGRAMMER ?= arduino
-UPLOAD_PORT        ?= /dev/arduino
+UPLOAD_PORT        ?= /dev/ttyACM0
 
 #Directory used to build files in, contains all the build files, from object files to the final hex file.
 BUILD_DIR          ?= applet
