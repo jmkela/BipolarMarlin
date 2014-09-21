@@ -195,8 +195,10 @@ void FlushSerialRequestResend();
 void ClearToSend();
 
 void get_coordinates();
-void prepare_scara_move();
-void prepare_cartesian_move();
+void current_cart2native();
+void current_native2cart();
+void prepare_cart_move();
+void prepare_native_move();
 void kill();
 void Stop();
 
@@ -220,7 +222,8 @@ extern float homing_feedrate[];
 extern bool  axis_relative_modes[];
 extern int   feedmultiply;
 extern int   extrudemultiply; // Sets extrude multiply factor (in percent)
-extern float current_position[NUM_AXIS];
+extern float current_native_position[NUM_AXIS];
+extern float current_cart_position[NUM_AXIS];
 extern float extruder_offset[2][EXTRUDERS];
 extern unsigned char fanSpeed[EXTRUDERS];
 

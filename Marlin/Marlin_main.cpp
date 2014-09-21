@@ -174,12 +174,12 @@ CardReader card;
 #endif
 float homing_feedrate[] = HOMING_FEEDRATE;
 bool axis_relative_modes[] = AXIS_RELATIVE_MODES;
-bool scara_raw_mode = false;
+bool native_mode = false;
 int feedmultiply=100; //100->1 200->2
 int saved_feedmultiply;
 int extrudemultiply=100; //100->1 200->2
-float current_position[NUM_AXIS];
-float current_scara_x_position = 90.0, current_scara_y_position = 0.0;
+float current_cart_position[NUM_AXIS];
+float current_native_position[NUM_AXIS];
 float e_last_position[EXTRUDERS];
 #ifdef DUAL_X_DRIVE
   float x_last_position[EXTRUDERS] = {X0_HOME_POS, X1_HOME_POS};
@@ -751,10 +751,11 @@ XYZ_CONSTS_FROM_CONFIG(float, home_retract_mm, HOME_RETRACT_MM);
 #endif // !defined(DUAL_X_DRIVE) && !defined(DUAL_Y_DRIVE)
 
 static void axis_is_at_home(int axis) {
-  current_position[axis] = base_home_pos(axis);
+  current_native_position[axis] = base_home_pos(axis);
   #ifdef ENABLE_ADD_HOMEING
-  current_position[axis] += add_homeing[ACTIVE_EXTRUDER][axis];
+  current_native_position[axis] += add_homeing[ACTIVE_EXTRUDER][axis];
   #endif // ENABLE_ADD_HOMEING
+  current_native2cart();
 }
 
 static void homeaxis(int axis) {
@@ -765,15 +766,15 @@ static void homeaxis(int axis) {
         axis==Y_AXIS ? HOMEAXIS_DO(Y) :
           axis==Z_AXIS ? HOMEAXIS_DO(Z) : false) 
   {
-    current_position[axis] = 0;
-    plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+    current_native_position[axis] = 0;
+    plan_set_position(current_native_position[X_AXIS], current_native_position[Y_AXIS], current_native_position[Z_AXIS], current_native_position[E_AXIS]);
     destination[axis] = 1.5 * max_length(axis) * home_dir(axis);
     feedrate = homing_feedrate[axis];
     plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate/60, active_extruder);
     st_synchronize();
 
-    current_position[axis] = 0;
-    plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+    current_native_position[axis] = 0;
+    plan_set_position(current_native_position[X_AXIS], current_native_position[Y_AXIS], current_native_position[Z_AXIS], current_native_position[E_AXIS]);
     destination[axis] = -home_retract_mm(axis) * home_dir(axis);
     plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate/60, active_extruder);
     st_synchronize();
@@ -784,7 +785,7 @@ static void homeaxis(int axis) {
     st_synchronize();
 
     axis_is_at_home(axis);					
-    destination[axis] = current_position[axis];
+    destination[axis] = current_native_position[axis];
     feedrate = 0.0;
     endstops_hit_on_purpose();
   }
@@ -798,39 +799,36 @@ static void set_active_extruder(uint8_t to_extruder,
 {
   if(to_extruder != active_extruder) {
     // Save current position to return to after applying extruder offset
-    memcpy(destination, current_position, sizeof(destination));
+    memcpy(destination, current_native_position, sizeof(destination));
     // Offset extruder (only by XY)
     for(uint8_t i = 0; i < 2; i++) {
-       current_position[i] = current_position[i] - 
+       current_native_position[i] = current_native_position[i] - 
                              extruder_offset[i][active_extruder] +
                              extruder_offset[i][to_extruder];
     }
     // Save the current coordinate of the active extruder
-    e_last_position[active_extruder] = current_position[E_AXIS];
+    e_last_position[active_extruder] = current_native_position[E_AXIS];
     #ifdef DUAL_X_DRIVE
-    x_last_position[active_extruder] = current_position[X_AXIS];
-    current_position[X_AXIS] = x_last_position[to_extruder];
+    x_last_position[active_extruder] = current_native_position[X_AXIS];
+    current_native_position[X_AXIS] = x_last_position[to_extruder];
     #endif // DUAL_X_DRIVE
     #ifdef DUAL_Y_DRIVE
-    y_last_position[active_extruder] = current_position[Y_AXIS];
-    current_position[Y_AXIS] = y_last_position[to_extruder];
+    y_last_position[active_extruder] = current_native_position[Y_AXIS];
+    current_native_position[Y_AXIS] = y_last_position[to_extruder];
     #endif // DUAL_Y_DRIVE
     // Clear the follow me mode for the selected extruder
     follow_me &= ~((int)to_extruder);
     // Set the active extruder
     active_extruder = to_extruder;
     // Restore E coordinate of the specified extruder
-    current_position[E_AXIS] = e_last_position[e_starts_from_extruder];
-    destination[E_AXIS] = current_position[E_AXIS];
-    plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+    current_native_position[E_AXIS] = e_last_position[e_starts_from_extruder];
+    destination[E_AXIS] = current_native_position[E_AXIS];
+    plan_set_position(current_native_position[X_AXIS], current_native_position[Y_AXIS], current_native_position[Z_AXIS], current_native_position[E_AXIS]);
     // Move to the old position if 'F' was in the parameters
     if(make_move) {
-      if (scara_raw_mode) {
-        prepare_cartesian_move();
-      } else {
-        prepare_scara_move();
-      }
+        prepare_native_move();
     }
+    current_native2cart();
     // Make sure we complete all the planned moves before continuing
     st_synchronize();
   }
@@ -841,6 +839,7 @@ void process_commands()
 {
   unsigned long codenum; //throw away variable
   char *starpos = NULL;
+  bool e_only = false;
   
 #ifdef NO_ECHO_WHILE_PRINTING
   machine_printing = (num_blocks_queued() >= MACHINE_PRINTING_BLOCKS);
@@ -854,10 +853,10 @@ void process_commands()
     case 1: // G1
       if(Stopped == false) {
         get_coordinates(); // For X Y Z E F
-        if (scara_raw_mode) {
-          prepare_cartesian_move();
+        if (native_mode) {
+          prepare_native_move();
         } else {
-          prepare_scara_move();
+          prepare_cart_move();
         }
         //ClearToSend();
         return;
@@ -894,29 +893,28 @@ void process_commands()
       case 10: // G10 retract
       if(!retracted) 
       {
-        destination[X_AXIS]=current_position[X_AXIS];
-        destination[Y_AXIS]=current_position[Y_AXIS];
-        destination[Z_AXIS]=current_position[Z_AXIS]; 
-        current_position[Z_AXIS]+=-retract_zlift;
-        destination[E_AXIS]=current_position[E_AXIS]-retract_length; 
+        destination[X_AXIS]=current_cart_position[X_AXIS];
+        destination[Y_AXIS]=current_cart_position[Y_AXIS];
+        destination[Z_AXIS]=current_cart_position[Z_AXIS]; 
+        current_cart_position[Z_AXIS]+=-retract_zlift;
+        destination[E_AXIS]=current_cart_position[E_AXIS]-retract_length; 
         feedrate=retract_feedrate;
         retracted=true;
-        prepare_cartesian_move();
+        prepare_cart_move();
       }
       
       break;
       case 11: // G10 retract_recover
       if(!retracted) 
       {
-        destination[X_AXIS]=current_position[X_AXIS];
-        destination[Y_AXIS]=current_position[Y_AXIS];
-        destination[Z_AXIS]=current_position[Z_AXIS]; 
-        
-        current_position[Z_AXIS]+=retract_zlift;
-        current_position[E_AXIS]+=-retract_recover_length; 
+        destination[X_AXIS]=current_cart_position[X_AXIS];
+        destination[Y_AXIS]=current_cart_position[Y_AXIS];
+        destination[Z_AXIS]=current_cart_position[Z_AXIS]; 
+        current_cart_position[Z_AXIS]+=retract_zlift;
+        current_cart_position[E_AXIS]+=-retract_recover_length; 
         feedrate=retract_recover_feedrate;
         retracted=false;
-        prepare_cartesian_move();
+        prepare_cart_move();
       }
       break;
       #endif //FWRETRACT
@@ -929,8 +927,9 @@ void process_commands()
       enable_endstops(true);
       
       for(int8_t i=0; i < NUM_AXIS; i++) {
-        destination[i] = current_position[i];
+        destination[i] = current_native_position[i];
       }
+
       feedrate = 0.0;
       home_all_axis = !((code_seen(axis_codes[0])) || (code_seen(axis_codes[1])) || (code_seen(axis_codes[2])));
       
@@ -985,31 +984,34 @@ void process_commands()
       if(code_seen(axis_codes[X_AXIS])) 
       {
         if(code_value_long() != 0) {
-          current_position[X_AXIS] = code_value();
+          current_native_position[X_AXIS] = code_value();
           #ifdef ENABLE_ADD_HOMEING
-          current_position[X_AXIS] += add_homeing[ACTIVE_EXTRUDER][0];
+          current_native_position[X_AXIS] += add_homeing[ACTIVE_EXTRUDER][0];
           #endif // ENABLE_ADD_HOMEING
         }
       }
       
       if(code_seen(axis_codes[Y_AXIS])) {
         if(code_value_long() != 0) {
-          current_position[Y_AXIS] = code_value();
+          current_native_position[Y_AXIS] = code_value();
           #ifdef ENABLE_ADD_HOMEING
-          current_position[Y_AXIS] += add_homeing[ACTIVE_EXTRUDER][1];
+          current_native_position[Y_AXIS] += add_homeing[ACTIVE_EXTRUDER][1];
           #endif // ENABLE_ADD_HOMEING
         }
       }
       
       if(code_seen(axis_codes[Z_AXIS])) {
         if(code_value_long() != 0) {
-          current_position[Z_AXIS]=code_value();
+          current_native_position[Z_AXIS]=code_value();
           #ifdef ENABLE_ADD_HOMEING
-          current_position[Z_AXIS] += add_homeing[ACTIVE_EXTRUDER][2];
+          current_native_position[Z_AXIS] += add_homeing[ACTIVE_EXTRUDER][2];
           #endif // ENABLE_ADD_HOMEING
         }
       }
-      plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+
+      plan_set_position(current_native_position[X_AXIS], current_native_position[Y_AXIS], current_native_position[Z_AXIS], current_native_position[E_AXIS]);
+
+      current_native2cart();
       
       #ifdef ENDSTOPS_ONLY_FOR_HOMING
         enable_endstops(false);
@@ -1027,48 +1029,40 @@ void process_commands()
       relative_mode = true;
       break;
     case 92: // G92
-      if(!code_seen(axis_codes[E_AXIS]))
+      if(!code_seen(axis_codes[E_AXIS])) {
         st_synchronize();
+      } else {
+        e_only = true;
+      }
       for(int8_t i=0; i < NUM_AXIS; i++) {
         if(code_seen(axis_codes[i])) {
-           current_position[i] = code_value();
-           if(i == E_AXIS) {
-             plan_set_e_position(current_position[E_AXIS]);
-           }
-           else {
-	     /* If we are in raw SCARA mode, don't use the cartesian
-		coordinates from current_position array to set the position.
-		Instead use the stored current SCARA X and Y values. 
-		Otherwise the cartesian coordinates will end up being
-		copied into the SCARA axis position. */
-	     if (scara_raw_mode) {
-	       if (i == X_AXIS) {
-		 current_scara_x_position = code_value();  
-	       } else if (i == Y_AXIS) {
-		 current_scara_y_position = code_value();  
-	       } else {
-		 current_position[i] = code_value();
-	       }
-	       plan_set_position(current_scara_x_position, 
-				 current_scara_y_position, 
-				 current_position[Z_AXIS], 
-				 current_position[E_AXIS]);
-	     } else {
-	       current_position[i] = code_value();  
-	       plan_set_position(current_position[X_AXIS], 
-				 current_position[Y_AXIS], 
-				 current_position[Z_AXIS], 
-				 current_position[E_AXIS]);
-	     }
-           }
+          if ( i != E_AXIS )
+            e_only = false;
+          if (native_mode) {
+            current_native_position[i] = code_value();
+          } else {
+            current_cart_position[i] = code_value();
+          }
         }
+      }
+      if (native_mode)
+        current_native2cart();
+      else
+        current_cart2native();
+      if (e_only) {
+        plan_set_e_position( current_native_position[E_AXIS] );
+      } else {
+        plan_set_position(current_native_position[X_AXIS], 
+                          current_native_position[Y_AXIS], 
+                          current_native_position[Z_AXIS], 
+                          current_native_position[E_AXIS]);
       }
       break;
     case 93: // G93
-      scara_raw_mode = false;
+      native_mode = false;
       break;
     case 94: // G94
-      scara_raw_mode = true;
+      native_mode = true;
       break;
 
     }
@@ -1579,7 +1573,11 @@ void process_commands()
       }
       st_synchronize();
       // This recalculates position in steps in case user has changed steps/unit
-      plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+      if (native_mode) {
+        plan_set_position(current_native_position[X_AXIS], current_native_position[Y_AXIS], current_native_position[Z_AXIS], current_native_position[E_AXIS]);
+      } else {
+        plan_set_position(current_cart_position[X_AXIS], current_cart_position[Y_AXIS], current_cart_position[Z_AXIS], current_cart_position[E_AXIS]);
+      }
       break;
     case 115: // M115
       SERIAL_PROTOCOLPGM(MSG_M115_REPORT);
@@ -1592,13 +1590,13 @@ void process_commands()
       break;
     case 114: // M114
       SERIAL_PROTOCOLPGM("X:");
-      SERIAL_PROTOCOL(current_position[X_AXIS]);
+      SERIAL_PROTOCOL(current_cart_position[X_AXIS]);
       SERIAL_PROTOCOLPGM("Y:");
-      SERIAL_PROTOCOL(current_position[Y_AXIS]);
+      SERIAL_PROTOCOL(current_cart_position[Y_AXIS]);
       SERIAL_PROTOCOLPGM("Z:");
-      SERIAL_PROTOCOL(current_position[Z_AXIS]);
+      SERIAL_PROTOCOL(current_cart_position[Z_AXIS]);
       SERIAL_PROTOCOLPGM("E:");
-      SERIAL_PROTOCOL(current_position[E_AXIS]);
+      SERIAL_PROTOCOL(current_cart_position[E_AXIS]);
       
       SERIAL_PROTOCOLPGM(MSG_COUNT_X);
       SERIAL_PROTOCOL(float(st_get_position(X_AXIS))/axis_steps_per_unit[X_AXIS]);
@@ -1964,7 +1962,7 @@ void process_commands()
         SERIAL_ECHOPAIR(MSG_INVALID_POS_SLOT, (int)NUM_POSITON_SLOTS);
         break;
       } 
-      memcpy(saved_position[slot], current_position, sizeof(*saved_position));
+      memcpy(saved_position[slot], current_native_position, sizeof(*saved_position));
       SERIAL_ECHO_START;
       SERIAL_ECHO(MSG_SAVED_POS);
       SERIAL_ECHOPAIR(" S", slot);
@@ -1998,18 +1996,18 @@ void process_commands()
       for(int i=0; i< NUM_AXIS; i++) {
         float coord = saved_position[slot][i];
         if(code_seen(axis_codes[i]) && code_value() == 0) {
-          coord = current_position[i];
+          coord = current_native_position[i];
         }
         if(make_move) {
           destination[i] = coord;
         }
         else {
-          current_position[i] = coord;
+          current_native_position[i] = coord;
           if(i == E_AXIS) {
-            plan_set_e_position(current_position[E_AXIS]);
+            plan_set_e_position(current_native_position[E_AXIS]);
           }
           else {
-            plan_set_position(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS]);
+            plan_set_position(current_native_position[X_AXIS], current_native_position[Y_AXIS], current_native_position[Z_AXIS], current_native_position[E_AXIS]);
           }
         }
         SERIAL_ECHOPAIR(" ", axis_codes[i]);
@@ -2017,11 +2015,7 @@ void process_commands()
       }
       SERIAL_ECHOLN("");
       if(make_move) {
-        if (scara_raw_mode) {
-          prepare_cartesian_move();
-        } else {
-          prepare_scara_move();
-        }
+        prepare_native_move();
         st_synchronize();
       }
     }
@@ -2159,14 +2153,14 @@ void process_commands()
     {
         float target[4];
         float lastpos[4];
-        target[X_AXIS]=current_position[X_AXIS];
-        target[Y_AXIS]=current_position[Y_AXIS];
-        target[Z_AXIS]=current_position[Z_AXIS];
-        target[E_AXIS]=current_position[E_AXIS];
-        lastpos[X_AXIS]=current_position[X_AXIS];
-        lastpos[Y_AXIS]=current_position[Y_AXIS];
-        lastpos[Z_AXIS]=current_position[Z_AXIS];
-        lastpos[E_AXIS]=current_position[E_AXIS];
+        target[X_AXIS]=current_native_position[X_AXIS];
+        target[Y_AXIS]=current_native_position[Y_AXIS];
+        target[Z_AXIS]=current_native_position[Z_AXIS];
+        target[E_AXIS]=current_native_position[E_AXIS];
+        lastpos[X_AXIS]=current_native_position[X_AXIS];
+        lastpos[Y_AXIS]=current_native_position[Y_AXIS];
+        lastpos[Z_AXIS]=current_native_position[Z_AXIS];
+        lastpos[E_AXIS]=current_native_position[E_AXIS];
         //retract by E
         if(code_seen('E')) 
         {
@@ -2269,8 +2263,8 @@ void process_commands()
             target[E_AXIS]+=(-1)*FILAMENTCHANGE_FINALRETRACT ;
           #endif
         }
-        current_position[E_AXIS]=target[E_AXIS]; //the long retract of L is compensated by manual filament feeding
-        plan_set_e_position(current_position[E_AXIS]);
+        current_native_position[E_AXIS]=target[E_AXIS]; //the long retract of L is compensated by manual filament feeding
+        plan_set_e_position(current_native_position[E_AXIS]);
         plan_buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder); //should do nothing
         plan_buffer_line(lastpos[X_AXIS], lastpos[Y_AXIS], target[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder); //move xy back
         plan_buffer_line(lastpos[X_AXIS], lastpos[Y_AXIS], lastpos[Z_AXIS], target[E_AXIS], feedrate/60, active_extruder); //move z back
@@ -2377,10 +2371,19 @@ void get_coordinates()
   for(int8_t i=0; i < NUM_AXIS; i++) {
     if(code_seen(axis_codes[i])) 
     {
-      destination[i] = (float)code_value() + (axis_relative_modes[i] || relative_mode)*current_position[i];
+      if (native_mode) {
+        destination[i] = (float)code_value() + (axis_relative_modes[i] || relative_mode)*current_native_position[i];
+      } else {
+        destination[i] = (float)code_value() + (axis_relative_modes[i] || relative_mode)*current_cart_position[i];
+      }
       seen[i]=true;
+    } else {  //Are these else lines really needed?
+      if (native_mode) {
+        destination[i] = current_native_position[i];
+      } else {
+        destination[i] = current_cart_position[i];
+      }
     }
-    else destination[i] = current_position[i]; //Are these else lines really needed?
   }
   if(code_seen('F')) {
     next_feedrate = code_value();
@@ -2390,7 +2393,7 @@ void get_coordinates()
   if(autoretract_enabled)
   if( !(seen[X_AXIS] || seen[Y_AXIS] || seen[Z_AXIS]) && seen[E_AXIS])
   {
-    float echange=destination[E_AXIS]-current_position[E_AXIS];
+    float echange=destination[E_AXIS]-current_native_position[E_AXIS];
     if(echange<-MIN_RETRACT) //retract
     {
       if(!retracted) 
@@ -2400,7 +2403,8 @@ void get_coordinates()
       //if slicer retracted by echange=-1mm and you want to retract 3mm, corrrectede=-2mm additionally
       float correctede=-echange-retract_length;
       //to generate the additional steps, not the destination is changed, but inversely the current position
-      current_position[E_AXIS]+=-correctede; 
+      current_native_position[E_AXIS]+=-correctede; 
+      current_cart_position[E_AXIS] = current_native_position[E_AXIS];
       feedrate=retract_feedrate;
       retracted=true;
       }
@@ -2414,7 +2418,8 @@ void get_coordinates()
       //current_position[Z_AXIS]+=-retract_zlift;
       //if slicer retracted_recovered by echange=+1mm and you want to retract_recover 3mm, corrrectede=2mm additionally
       float correctede=-echange+1*retract_length+retract_recover_length; //total unretract=retract_length+retract_recover_length[surplus]
-      current_position[E_AXIS]+=correctede; //to generate the additional steps, not the destination is changed, but inversely the current position
+      current_native_position[E_AXIS]+=correctede; //to generate the additional steps, not the destination is changed, but inversely the current position
+      current_cart_position[E_AXIS] = current_native_position[E_AXIS];
       feedrate=retract_recover_feedrate;
       retracted=false;
       }
@@ -2468,18 +2473,18 @@ void clamp_to_software_endstops(float target[3])
 /* Bipolar kinematics. 
 
    The firmware's internal X and Y coordinates are the axis rotations
-   in degrees, not the cartesian position of the toolhead. In raw
+   in degrees, not the cartesian position of the toolhead. In native
    mode, the G0/G1 commands will drive the axes to the desired
    rotation. 
    
-   With raw mode off, the given coordinates will be interpreted as the
+   With native mode off, the given coordinates will be interpreted as the
    cartesian destination point and the prepare_move function will
-   convert them to SCARA arm rotations before queuing them for the
+   convert them to bipolar coordinates before queuing them for the
    planner.
 
    For non-printing moves and short moves, we can just enqueue the
-   final arm rotation.  However, for long printing moves, driving the
-   rotations linearly to final values may result in a curved toolhead
+   native coordinates.  However, for long printing moves, driving the
+   motors linearly to final values may result in a curved toolhead
    path. For example, when the rotation of one of the arms happens to
    be same at the begin and end positions, the trajectory will always
    be curved. This is fine for non-printing moves and saves effort
@@ -2511,9 +2516,42 @@ void cart2bipol(float x, float y, float* theta1, float* theta2)
   *theta1 = *theta1 * (180.0/M_PI);
 }
 
-/* Split the move into small segments and convert each to SCARA coordinates
+/* Convert a set of bipolar coordinates (in degrees) to cartesian coordinates
+   (in mm). */
+void bipol2cart(float theta1, float theta2, float* x, float* y)
+{
+  //Convert from degrees to radians
+  float theta1_rad = theta1 * (M_PI/180.0);
+  float theta2_rad = theta2 * (M_PI/180.0);
+
+  //Convert from bipolar to polar
+  float theta = ((M_PI-theta2_rad)/2) - theta1_rad;
+  float r = 2 * BIPOLAR_RADIUS * sin(theta2_rad/2);
+
+  //Convert from polar to cartesian
+  *x = r * cos(theta);
+  *y = r * sin(theta);
+}
+
+void current_native2cart()
+{
+  bipol2cart( current_native_position[X_AXIS], current_native_position[Y_AXIS], &current_cart_position[X_AXIS], &current_cart_position[Y_AXIS] );
+  for (int8_t i=Z_AXIS; i < NUM_AXIS; i++) {
+    current_cart_position[i] = current_native_position[i];
+  }
+}
+
+void current_cart2native()
+{
+  cart2bipol( current_cart_position[X_AXIS], current_cart_position[Y_AXIS], &current_native_position[X_AXIS], &current_native_position[Y_AXIS] );
+  for (int8_t i=Z_AXIS; i < NUM_AXIS; i++) {
+    current_native_position[i] = current_cart_position[i];
+  }
+}
+
+/* Split the move into small segments and convert each to bipolar coordinates
    individually. Segment maximum length is defined in Configuration.h */
-void prepare_scara_move()
+void prepare_cart_move()
 {
   float theta1, theta2, distXY, deltaX, deltaY, deltaZ, deltaE,
     steplen, x, y, z, e, step;
@@ -2524,10 +2562,10 @@ void prepare_scara_move()
   previous_millis_cmd = millis();
 
   // Compute cartesian distance
-  deltaX = destination[X_AXIS] - current_position[X_AXIS];
-  deltaY = destination[Y_AXIS] - current_position[Y_AXIS];
-  deltaZ = destination[Z_AXIS] - current_position[Z_AXIS];
-  deltaE = destination[E_AXIS] - current_position[E_AXIS];
+  deltaX = destination[X_AXIS] - current_cart_position[X_AXIS];
+  deltaY = destination[Y_AXIS] - current_cart_position[Y_AXIS];
+  deltaZ = destination[Z_AXIS] - current_cart_position[Z_AXIS];
+  deltaE = destination[E_AXIS] - current_cart_position[E_AXIS];
   
   distXY = sqrt(deltaX*deltaX + deltaY*deltaY);
 
@@ -2542,10 +2580,10 @@ void prepare_scara_move()
   for (i = 1; i <= steps; i++) { // For each segment
     // Find target coordinates for end of segment
     step = (float)i / ((float)steps);
-    x = current_position[X_AXIS] + deltaX * step;
-    y = current_position[Y_AXIS] + deltaY * step;
-    z = current_position[Z_AXIS] + deltaZ * step;
-    e = current_position[E_AXIS] + deltaE * step;
+    x = current_cart_position[X_AXIS] + deltaX * step;
+    y = current_cart_position[Y_AXIS] + deltaY * step;
+    z = current_cart_position[Z_AXIS] + deltaZ * step;
+    e = current_cart_position[E_AXIS] + deltaE * step;
     
     // Convert target coordinates to bipolar coordinates
     cart2bipol( x, y, &theta1, &theta2 );
@@ -2561,34 +2599,37 @@ void prepare_scara_move()
   
   // Update current positions
   for(int8_t i=0; i < NUM_AXIS; i++) {
-    current_position[i] = destination[i];
+    current_cart_position[i] = destination[i];
   }
-  current_scara_x_position = theta1;
-  current_scara_y_position = theta2;
+  current_native_position[X_AXIS] = theta1;
+  current_native_position[Y_AXIS] = theta2;
+  current_native_position[Z_AXIS] = destination[Z_AXIS];
+  current_native_position[E_AXIS] = destination[E_AXIS];
 }
 
-void prepare_cartesian_move()
+void prepare_native_move()
 {
   //clamp_to_software_endstops(destination);
 
   previous_millis_cmd = millis();  
   plan_buffer_line(destination[X_AXIS], destination[Y_AXIS], destination[Z_AXIS], destination[E_AXIS], feedrate*feedmultiply/60/100.0, active_extruder);
   for(int8_t i=0; i < NUM_AXIS; i++) {
-    current_position[i] = destination[i];
+    current_native_position[i] = destination[i];
   }
+  current_native2cart();
 }
 
 void prepare_arc_move(char isclockwise) {
   float r = hypot(offset[X_AXIS], offset[Y_AXIS]); // Compute arc radius for mc_arc
 
   // Trace the arc
-  mc_arc(current_position, destination, offset, X_AXIS, Y_AXIS, Z_AXIS, feedrate*feedmultiply/60/100.0, r, isclockwise, active_extruder);
+  mc_arc(current_cart_position, destination, offset, X_AXIS, Y_AXIS, Z_AXIS, feedrate*feedmultiply/60/100.0, r, isclockwise, active_extruder);
   
   // As far as the parser is concerned, the position is now == target. In reality the
   // motion control system might still be processing the action and the real tool position
   // in any intermediate location.
   for(int8_t i=0; i < NUM_AXIS; i++) {
-    current_position[i] = destination[i];
+    current_cart_position[i] = destination[i];
   }
   previous_millis_cmd = millis();
 }
@@ -2661,12 +2702,12 @@ void manage_inactivity()
     {
       bool oldstatus=READ(E0_ENABLE_PIN);
       enable_e0();
-      float oldepos=current_position[E_AXIS];
+      float oldepos=current_native_position[E_AXIS];
       float oldedes=destination[E_AXIS];
-      plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], 
-                       current_position[E_AXIS]+EXTRUDER_RUNOUT_EXTRUDE*EXTRUDER_RUNOUT_ESTEPS/axis_steps_per_unit[E_AXIS], 
+      plan_buffer_line(current_native_position[X_AXIS], current_native_position[Y_AXIS], current_native_position[Z_AXIS], 
+                       current_native_position[E_AXIS]+EXTRUDER_RUNOUT_EXTRUDE*EXTRUDER_RUNOUT_ESTEPS/axis_steps_per_unit[E_AXIS], 
                        EXTRUDER_RUNOUT_SPEED/60.*EXTRUDER_RUNOUT_ESTEPS/axis_steps_per_unit[E_AXIS], active_extruder);
-      current_position[E_AXIS]=oldepos;
+      current_native_position[E_AXIS]=oldepos;
       destination[E_AXIS]=oldedes;
       plan_set_e_position(oldepos);
       previous_millis_cmd=millis();
