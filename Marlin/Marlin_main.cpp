@@ -440,6 +440,8 @@ void setup()
     gCComp_size[e] = size;
   }
   #endif // C_COMPENSATION
+
+  current_native_position[X_AXIS] = 90;
   
   Config_RetrieveSettings(); // loads data from EEPROM if available
 
@@ -758,13 +760,37 @@ static void axis_is_at_home(int axis) {
   current_native2cart();
 }
 
+static bool homeaxis_do(int axis) {
+  if (axis==X_AXIS) {
+    #ifdef DUAL_X_DRIVE
+    if (active_extruder == 0)
+      return ((X0_MIN_PIN > -1 && home_dir(X_AXIS) < 0) || (X0_MAX_PIN > -1 && home_dir(X_AXIS) > 0));
+    else if (active_extruder == 1)
+      return ((X1_MIN_PIN > -1 && home_dir(X_AXIS) < 0) || (X1_MAX_PIN > -1 && home_dir(X_AXIS) > 0));
+    #else
+    return ((X_MIN_PIN > -1 && home_dir(X_AXIS) < 0) || (X_MAX_PIN > -1 && home_dir(X_AXIS) > 0));
+    #endif
+  } else if (axis==Y_AXIS) {
+    #ifdef DUAL_Y_DRIVE
+    if (active_extruder == 0)
+      return ((Y0_MIN_PIN > -1 && home_dir(Y_AXIS) < 0) || (Y0_MAX_PIN > -1 && home_dir(Y_AXIS) > 0));
+    else if (active_extruder == 1)
+      return ((Y1_MIN_PIN > -1 && home_dir(Y_AXIS) < 0) || (Y1_MAX_PIN > -1 && home_dir(Y_AXIS) > 0));
+    #else
+    return ((Y_MIN_PIN > -1 && home_dir(Y_AXIS) < 0) || (Y_MAX_PIN > -1 && home_dir(Y_AXIS) > 0));
+    #endif
+  } else if (axis==Z_AXIS) {
+    return ((Z_MIN_PIN > -1 && home_dir(Z_AXIS) < 0) || (Z_MAX_PIN > -1 && home_dir(Z_AXIS) > 0));
+  }
+}
+
 static void homeaxis(int axis) {
 #define HOMEAXIS_DO(LETTER) \
   ((LETTER##_MIN_PIN > -1 && home_dir(LETTER##_AXIS) < 0) || (LETTER##_MAX_PIN > -1 && home_dir(LETTER##_AXIS) > 0))
 
-  if (axis==X_AXIS ? HOMEAXIS_DO(X) :
-        axis==Y_AXIS ? HOMEAXIS_DO(Y) :
-          axis==Z_AXIS ? HOMEAXIS_DO(Z) : false) 
+  if (axis==X_AXIS ? homeaxis_do(X_AXIS) :
+        axis==Y_AXIS ? homeaxis_do(Y_AXIS) :
+          axis==Z_AXIS ? homeaxis_do(Z_AXIS) : false) 
   {
     current_native_position[axis] = 0;
     plan_set_position(current_native_position[X_AXIS], current_native_position[Y_AXIS], current_native_position[Z_AXIS], current_native_position[E_AXIS]);
@@ -1615,22 +1641,63 @@ void process_commands()
       break;
     case 119: // M119
       SERIAL_PROTOCOLLN(MSG_M119_REPORT);
-      #if (X_MIN_PIN > -1)
+
+      #ifdef DUAL_X_DRIVE
+        #if (X0_MIN_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_X0_MIN);
+        SERIAL_PROTOCOLLN(((READ(X0_MIN_PIN)^X_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
+        #if (X1_MIN_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_X1_MIN);
+        SERIAL_PROTOCOLLN(((READ(X1_MIN_PIN)^X_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
+        #if (X0_MAX_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_X0_MAX);
+        SERIAL_PROTOCOLLN(((READ(X0_MAX_PIN)^X_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
+        #if (X1_MAX_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_X1_MAX);
+        SERIAL_PROTOCOLLN(((READ(X1_MAX_PIN)^X_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
+      #else
+        #if (X_MIN_PIN > -1)
         SERIAL_PROTOCOLPGM(MSG_X_MIN);
         SERIAL_PROTOCOLLN(((READ(X_MIN_PIN)^X_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
-      #endif
-      #if (X_MAX_PIN > -1)
+        #endif
+        #if (X_MAX_PIN > -1)
         SERIAL_PROTOCOLPGM(MSG_X_MAX);
         SERIAL_PROTOCOLLN(((READ(X_MAX_PIN)^X_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
       #endif
-      #if (Y_MIN_PIN > -1)
+
+      #ifdef DUAL_Y_DRIVE
+        #if (Y0_MIN_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_Y0_MIN);
+        SERIAL_PROTOCOLLN(((READ(Y0_MIN_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
+        #if (Y1_MIN_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_Y1_MIN);
+        SERIAL_PROTOCOLLN(((READ(Y1_MIN_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
+        #if (Y0_MAX_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_Y0_MAX);
+        SERIAL_PROTOCOLLN(((READ(Y0_MAX_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
+        #if (Y1_MAX_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_Y1_MAX);
+        SERIAL_PROTOCOLLN(((READ(Y1_MAX_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
+      #else
+        #if (Y_MIN_PIN > -1)
         SERIAL_PROTOCOLPGM(MSG_Y_MIN);
         SERIAL_PROTOCOLLN(((READ(Y_MIN_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
-      #endif
-      #if (Y_MAX_PIN > -1)
+        #endif
+        #if (Y_MAX_PIN > -1)
         SERIAL_PROTOCOLPGM(MSG_Y_MAX);
         SERIAL_PROTOCOLLN(((READ(Y_MAX_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
       #endif
+
       #if (Z_MIN_PIN > -1)
         SERIAL_PROTOCOLPGM(MSG_Z_MIN);
         SERIAL_PROTOCOLLN(((READ(Z_MIN_PIN)^Z_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));

@@ -337,36 +337,43 @@
 #if MOTHERBOARD == 33 || MOTHERBOARD == 34
 
 #ifndef DUAL_X_DRIVE
-#  define X_STEP_PIN       54
-#  define X_DIR_PIN        55
-#  define X_ENABLE_PIN     38
+  #define X_STEP_PIN       54
+  #define X_DIR_PIN        55
+  #define X_ENABLE_PIN     38
+  #define X_MIN_PIN        3
+  #define X_MAX_PIN        2 //Max endstops default to disabled "-1", set to commented value to enable.
 #else  // DUAL_X_DRIVE
-#  define X0_STEP_PIN      54
-#  define X0_DIR_PIN       55
-#  define X0_ENABLE_PIN    38
+  #define X0_STEP_PIN      54
+  #define X0_DIR_PIN       55
+  #define X0_ENABLE_PIN    38
+  #define X0_MIN_PIN       -1
+  #define X0_MAX_PIN       -1
 // These secondary X drive pins are for RepRap X2v3 extension board
-#  define X1_STEP_PIN      47
-#  define X1_DIR_PIN       32
-#  define X1_ENABLE_PIN    45
+  #define X1_STEP_PIN      47
+  #define X1_DIR_PIN       32
+  #define X1_ENABLE_PIN    45
+  #define X1_MIN_PIN       -1
+  #define X1_MAX_PIN       -1
 #endif // DUAL_X_DRIVE
-#define X_MIN_PIN           -1	//3
-#define X_MAX_PIN           -1   //2 //Max endstops default to disabled "-1", set to commented value to enable.
 
 #ifndef DUAL_Y_DRIVE
-#  define Y_STEP_PIN       60
-#  define Y_DIR_PIN        61
-#  define Y_ENABLE_PIN     56
+  #define Y_STEP_PIN       60
+  #define Y_DIR_PIN        61
+  #define Y_ENABLE_PIN     56
+  #define Y_MIN_PIN        14
+  #define Y_MAX_PIN        15
 #else  // DUAL_Y_DRIVE
-#  define Y0_STEP_PIN      60
-#  define Y0_DIR_PIN       61
-#  define Y0_ENABLE_PIN    56
-#  define Y1_STEP_PIN      17
-#  define Y1_DIR_PIN       23
-#  define Y1_ENABLE_PIN    16
+  #define Y0_STEP_PIN      60
+  #define Y0_DIR_PIN       61
+  #define Y0_ENABLE_PIN    56
+  #define Y0_MIN_PIN       -1
+  #define Y0_MAX_PIN       15
+  #define Y1_STEP_PIN      17
+  #define Y1_DIR_PIN       23
+  #define Y1_ENABLE_PIN    16
+  #define Y1_MIN_PIN       -1
+  #define Y1_MAX_PIN       14
 #endif
-
-#define Y_MIN_PIN          -1	//14
-#define Y_MAX_PIN          15   //15
 
 #define Z_STEP_PIN         46
 #define Z_DIR_PIN          48
@@ -1577,13 +1584,13 @@
 #ifndef DUAL_X_DRIVE
 #  define X_SENSITIVE_PINS X_STEP_PIN, X_DIR_PIN, X_ENABLE_PIN, X_MIN_PIN, X_MAX_PIN
 #else // DUAL_X_DRIVE
-#  define X_SENSITIVE_PINS X0_STEP_PIN, X0_DIR_PIN, X0_ENABLE_PIN, X1_STEP_PIN, X1_DIR_PIN, X1_ENABLE_PIN, X_MIN_PIN, X_MAX_PIN
+#  define X_SENSITIVE_PINS X0_STEP_PIN, X0_DIR_PIN, X0_ENABLE_PIN, X0_MIN_PIN, X0_MAX_PIN, X1_STEP_PIN, X1_DIR_PIN, X1_ENABLE_PIN, X1_MIN_PIN, X1_MAX_PIN
 #endif // DUAL_X_DRIVE
 
 #ifndef DUAL_Y_DRIVE
 #  define Y_SENSITIVE_PINS Y_STEP_PIN, Y_DIR_PIN, Y_ENABLE_PIN, Y_MIN_PIN, Y_MAX_PIN
 #else // DUAL_Y_DRIVE
-#  define Y_SENSITIVE_PINS Y0_STEP_PIN, Y0_DIR_PIN, Y0_ENABLE_PIN, Y1_STEP_PIN, Y1_DIR_PIN, Y1_ENABLE_PIN, Y_MIN_PIN, Y_MAX_PIN
+#  define Y_SENSITIVE_PINS Y0_STEP_PIN, Y0_DIR_PIN, Y0_ENABLE_PIN, Y0_MIN_PIN, Y0_MAX_PIN, Y1_STEP_PIN, Y1_DIR_PIN, Y1_ENABLE_PIN, Y1_MIN_PIN, Y1_MAX_PIN
 #endif // DUAL_Y_DRIVE
 
 #define SENSITIVE_PINS {0, 1, X_SENSITIVE_PINS, Y_SENSITIVE_PINS, \

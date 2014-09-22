@@ -92,7 +92,7 @@
 #define TEMP_SENSOR_BED 1
 
 // Actual temperature must be close to target for this long before M109 returns success
-#define TEMP_RESIDENCY_TIME 20  // (seconds)
+#define TEMP_RESIDENCY_TIME 10  // (seconds)
 #define TEMP_WINDOW 3           // (C) range of +/- temperatures considered "close" enough to the target one 
                                 // (i.e. M109 will consider the temp reached if withing that range)
 #define TEMP_WINDOW_BED 2       // (C) range of +/- temperatures considered "close" enough for bed

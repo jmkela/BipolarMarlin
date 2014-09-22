@@ -1,4 +1,5 @@
 /*
+
   stepper.c - stepper motor driver: executes motion plans using stepper motors
   Part of Grbl
 
@@ -566,14 +567,24 @@ FORCE_INLINE void check_endstops()
 {
   // Check limit switches
   if ((out_bits & (1<<X_AXIS)) != 0) {   // stepping along -X axis
-    #if X_MIN_PIN > -1
+    #if X_MIN_PIN > -1 || X0_MIN_PIN > -1 || X1_MIN_PIN > -1
     #ifdef DUAL_X_DRIVE
     if(endstops_enabled && !min_x_endstop_ignore[current_e])
+    {
+      bool x_min_endstop = false;
+      #if X0_MIN_PIN > -1
+      if (active_extruder == 0)
+        x_min_endstop = (READ(X0_MIN_PIN) != X_ENDSTOPS_INVERTING);
+      #endif
+      #if X1_MIN_PIN > -1
+      if (active_extruder == 1)
+        x_min_endstop = (READ(X1_MIN_PIN) != X_ENDSTOPS_INVERTING);
+      #endif
     #else // DUAL_X_DRIVE
     if(endstops_enabled)
-    #endif // DUAL_X_DRIVE
     {
-      bool x_min_endstop=(READ(X_MIN_PIN) != X_ENDSTOPS_INVERTING);
+      bool x_min_endstop = (READ(X_MIN_PIN) != X_ENDSTOPS_INVERTING);
+    #endif // DUAL_X_DRIVE
       if(x_min_endstop && old_x_min_endstop && (current_block->steps_x > 0)) {
         endstops_trigsteps[X_AXIS] = count_position[X_AXIS];
         endstop_x_hit=true;
@@ -584,14 +595,24 @@ FORCE_INLINE void check_endstops()
     #endif
   }
   else { // +direction
-    #if X_MAX_PIN > -1
+    #if X_MAX_PIN > -1 || X0_MAX_PIN > -1 || X1_MAX_PIN > -1
     #ifdef DUAL_X_DRIVE
     if(endstops_enabled && !max_x_endstop_ignore[current_e])
+    {
+      bool x_max_endstop = false;
+      #if X0_MAX_PIN > -1
+      if (active_extruder == 0)
+        x_max_endstop = (READ(X0_MAX_PIN) != X_ENDSTOPS_INVERTING);
+      #endif
+      #if X1_MAX_PIN > -1
+      if (active_extruder == 1)
+        x_max_endstop = (READ(X1_MAX_PIN) != X_ENDSTOPS_INVERTING);
+      #endif
     #else // DUAL_X_DRIVE
     if(endstops_enabled)
-    #endif // DUAL_X_DRIVE
     {
-      bool x_max_endstop=(READ(X_MAX_PIN) != X_ENDSTOPS_INVERTING);
+      bool x_max_endstop = (READ(X_MAX_PIN) != X_ENDSTOPS_INVERTING);
+    #endif // DUAL_X_DRIVE
       if(x_max_endstop && old_x_max_endstop && (current_block->steps_x > 0)){
         endstops_trigsteps[X_AXIS] = count_position[X_AXIS];
         endstop_x_hit=true;
@@ -603,14 +624,24 @@ FORCE_INLINE void check_endstops()
   }
 
   if ((out_bits & (1<<Y_AXIS)) != 0) {   // -direction
-    #if Y_MIN_PIN > -1
+    #if Y_MIN_PIN > -1 || Y0_MIN_PIN > -1 || Y1_MIN_PIN > -1
     #ifdef DUAL_Y_DRIVE
     if(endstops_enabled && !min_y_endstop_ignore[current_e])
+    {
+      bool y_min_endstop = false;
+      #if Y0_MIN_PIN > -1
+      if (active_extruder == 0)
+        y_min_endstop = (READ(Y0_MIN_PIN) != Y_ENDSTOPS_INVERTING);
+      #endif
+      #if Y1_MIN_PIN > -1
+      if (active_extruder == 1)
+        y_min_endstop = (READ(Y1_MIN_PIN) != Y_ENDSTOPS_INVERTING);
+      #endif
     #else // DUAL_Y_DRIVE
     if(endstops_enabled)
-    #endif // DUAL_Y_DRIVE
     {
-      bool y_min_endstop=(READ(Y_MIN_PIN) != Y_ENDSTOPS_INVERTING);
+      bool y_min_endstop = (READ(Y_MIN_PIN) != Y_ENDSTOPS_INVERTING);
+    #endif // DUAL_Y_DRIVE
       if(y_min_endstop && old_y_min_endstop && (current_block->steps_y > 0)) {
         endstops_trigsteps[Y_AXIS] = count_position[Y_AXIS];
         endstop_y_hit=true;
@@ -621,14 +652,24 @@ FORCE_INLINE void check_endstops()
     #endif
   }
   else { // +direction
-    #if Y_MAX_PIN > -1
+    #if Y_MAX_PIN > -1 || Y0_MAX_PIN > -1 || Y1_MAX_PIN > -1
     #ifdef DUAL_Y_DRIVE
     if(endstops_enabled && !max_y_endstop_ignore[current_e])
+    {
+      bool y_max_endstop = false;
+      #if Y0_MAX_PIN > -1
+      if (active_extruder == 0)
+        y_max_endstop = (READ(Y0_MAX_PIN) != Y_ENDSTOPS_INVERTING);
+      #endif
+      #if Y1_MAX_PIN > -1
+      if (active_extruder == 1)
+        y_max_endstop = (READ(Y1_MAX_PIN) != Y_ENDSTOPS_INVERTING);
+      #endif
     #else // DUAL_Y_DRIVE
     if(endstops_enabled)
-    #endif // DUAL_Y_DRIVE
     {
-      bool y_max_endstop=(READ(Y_MAX_PIN) != Y_ENDSTOPS_INVERTING);
+      bool y_max_endstop = (READ(Y_MAX_PIN) != Y_ENDSTOPS_INVERTING);
+    #endif // DUAL_Y_DRIVE
       if(y_max_endstop && old_y_max_endstop && (current_block->steps_y > 0)){
         endstops_trigsteps[Y_AXIS] = count_position[Y_AXIS];
         endstop_y_hit=true;
@@ -1170,17 +1211,47 @@ void st_init()
 
   //endstops and pullups
   
-  #if X_MIN_PIN > -1
-    SET_INPUT(X_MIN_PIN); 
-    #ifdef ENDSTOPPULLUP_XMIN
-      WRITE(X_MIN_PIN,HIGH);
+  #ifdef DUAL_X_DRIVE
+    #if X0_MIN_PIN > -1
+      SET_INPUT(X0_MIN_PIN); 
+      #ifdef ENDSTOPPULLUP_XMIN
+        WRITE(X0_MIN_PIN,HIGH);
+      #endif
+    #endif
+    #if X1_MIN_PIN > -1
+      SET_INPUT(X1_MIN_PIN); 
+      #ifdef ENDSTOPPULLUP_XMIN
+        WRITE(X1_MIN_PIN,HIGH);
+      #endif
+    #endif
+  #else
+    #if X_MIN_PIN > -1
+      SET_INPUT(X_MIN_PIN); 
+      #ifdef ENDSTOPPULLUP_XMIN
+        WRITE(X_MIN_PIN,HIGH);
+      #endif
     #endif
   #endif
       
-  #if Y_MIN_PIN > -1
-    SET_INPUT(Y_MIN_PIN); 
-    #ifdef ENDSTOPPULLUP_YMIN
-      WRITE(Y_MIN_PIN,HIGH);
+  #ifdef DUAL_Y_DRIVE
+    #if Y0_MIN_PIN > -1
+      SET_INPUT(Y0_MIN_PIN); 
+      #ifdef ENDSTOPPULLUP_YMIN
+        WRITE(Y0_MIN_PIN,HIGH);
+      #endif
+    #endif
+    #if Y1_MIN_PIN > -1
+      SET_INPUT(Y1_MIN_PIN); 
+      #ifdef ENDSTOPPULLUP_YMIN
+        WRITE(Y1_MIN_PIN,HIGH);
+      #endif
+    #endif
+  #else
+    #if Y_MIN_PIN > -1
+      SET_INPUT(Y_MIN_PIN); 
+      #ifdef ENDSTOPPULLUP_YMIN
+        WRITE(Y_MIN_PIN,HIGH);
+      #endif
     #endif
   #endif
   
@@ -1191,17 +1262,47 @@ void st_init()
     #endif
   #endif
       
-  #if X_MAX_PIN > -1
-    SET_INPUT(X_MAX_PIN); 
-    #ifdef ENDSTOPPULLUP_XMAX
-      WRITE(X_MAX_PIN,HIGH);
+  #ifdef DUAL_X_DRIVE
+    #if X0_MAX_PIN > -1
+      SET_INPUT(X0_MAX_PIN); 
+      #ifdef ENDSTOPPULLUP_XMAX
+        WRITE(X0_MAX_PIN,HIGH);
+      #endif
+    #endif
+    #if X1_MAX_PIN > -1
+      SET_INPUT(X1_MAX_PIN); 
+      #ifdef ENDSTOPPULLUP_XMAX
+        WRITE(X1_MAX_PIN,HIGH);
+      #endif
+    #endif
+  #else
+    #if X_MAX_PIN > -1
+      SET_INPUT(X_MAX_PIN); 
+      #ifdef ENDSTOPPULLUP_XMAX
+        WRITE(X_MAX_PIN,HIGH);
+      #endif
     #endif
   #endif
       
-  #if Y_MAX_PIN > -1
-    SET_INPUT(Y_MAX_PIN); 
-    #ifdef ENDSTOPPULLUP_YMAX
-      WRITE(Y_MAX_PIN,HIGH);
+  #ifdef DUAL_Y_DRIVE
+    #if Y0_MAX_PIN > -1
+      SET_INPUT(Y0_MAX_PIN); 
+      #ifdef ENDSTOPPULLUP_YMAX
+        WRITE(Y0_MAX_PIN,HIGH);
+      #endif
+    #endif
+    #if Y1_MAX_PIN > -1
+      SET_INPUT(Y1_MAX_PIN); 
+      #ifdef ENDSTOPPULLUP_YMAX
+        WRITE(Y1_MAX_PIN,HIGH);
+      #endif
+    #endif
+  #else
+    #if Y_MAX_PIN > -1
+      SET_INPUT(Y_MAX_PIN); 
+      #ifdef ENDSTOPPULLUP_YMAX
+        WRITE(Y_MAX_PIN,HIGH);
+      #endif
     #endif
   #endif
   
