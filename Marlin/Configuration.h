@@ -57,7 +57,7 @@
 #define POWER_SUPPLY 1
 
 // This defines the number of extruders
-#define EXTRUDERS 2
+#define EXTRUDERS 4
 
 //===========================================================================
 //=============================Thermal Settings  ============================
@@ -88,7 +88,8 @@
 
 #define TEMP_SENSOR_0 7
 #define TEMP_SENSOR_1 7
-#define TEMP_SENSOR_2 0
+#define TEMP_SENSOR_2 7
+#define TEMP_SENSOR_3 7
 #define TEMP_SENSOR_BED 1
 
 // Actual temperature must be close to target for this long before M109 returns success
@@ -103,6 +104,7 @@
 #define HEATER_0_MINTEMP 5
 #define HEATER_1_MINTEMP 5
 #define HEATER_2_MINTEMP 5
+#define HEATER_3_MINTEMP 5
 #define BED_MINTEMP 5
 
 // When temperature exceeds max temp, your heater will be switched off.
@@ -111,6 +113,7 @@
 #define HEATER_0_MAXTEMP 275
 #define HEATER_1_MAXTEMP 275
 #define HEATER_2_MAXTEMP 275
+#define HEATER_3_MAXTEMP 275
 #define BED_MAXTEMP 150
 
 // PID settings:
@@ -283,9 +286,13 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 //#define INVERT_Y_DIR true      // Y axis motor direction, for Mendel set to true, for Orca set to false
 #define INVERT_Y0_DIR true   // Y first motor direction, for Mendel set to true, for Orca set to false
 #define INVERT_Y1_DIR true   // Y second motor direction
+#define INVERT_Y2_DIR false
+#define INVERT_Y3_DIR false
 #define INVERT_Z_DIR true    // for Mendel set to false, for Orca set to true
 #define INVERT_E0_DIR false  // for direct drive extruder v9 set to true, for geared extruder set to false
 #define INVERT_E1_DIR true  // for direct drive extruder v9 set to true, for geared extruder set to false
+#define INVERT_E2_DIR false
+#define INVERT_E3_DIR false
 //#define INVERT_E2_DIR false  // for direct drive extruder v9 set to true, for geared extruder set to false
 
 // ENDSTOP SETTINGS:
@@ -297,6 +304,8 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 //#define Y_HOME_DIR 1      // Y axis homing direction
 #define Y0_HOME_DIR  1  // first motor Y axis homing direction
 #define Y1_HOME_DIR  1  // second motor Y axis homing direction
+#define Y2_HOME_DIR  1  // second motor Y axis homing direction
+#define Y3_HOME_DIR  1  // second motor Y axis homing direction
 #define Z_HOME_DIR -1
 
 #define min_software_endstops false  //If true, axis won't move to coordinates less than HOME_POS.
@@ -313,9 +322,13 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 //#define Y_MAX_POS 47.4
 #define Y0_MAX_POS 47.9
 #define Y1_MAX_POS 48.0
+#define Y2_MAX_POS 48.0
+#define Y3_MAX_POS 48.0
 //#define Y_MIN_POS 0
 #define Y0_MIN_POS 0
 #define Y1_MIN_POS 0
+#define Y2_MIN_POS 0
+#define Y3_MIN_POS 0
 #define Z_MAX_POS 150
 #define Z_MIN_POS 0
 
@@ -324,8 +337,9 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 // #define X_MAX_LENGTH (X1_MAX_POS - X0_MIN_POS) 
 // #define X_MAX_LENGTH (X0_MAX_POS - X1_MIN_POS) 
 // #define Y_MAX_LENGTH (Y_MAX_POS - Y_MIN_POS)
-#define Y_MAX_LENGTH (Y1_MAX_POS - Y0_MIN_POS)
+// #define Y_MAX_LENGTH (Y1_MAX_POS - Y0_MIN_POS)
 // #define Y_MAX_LENGTH (Y0_MAX_POS - Y1_MIN_POS)
+#define Y_MAX_LENGTH 50
 #define Z_MAX_LENGTH (Z_MAX_POS - Z_MIN_POS)
 
 //The BED_CENTER_AT_0_0 is not supported anymore, use *_MIN_POS and *_MAX_POS instead
@@ -342,8 +356,8 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 #define MANUAL_Z_HOME_POS 0
 
 //// MOVEMENT SETTINGS
-#define NUM_AXIS 5 // The axis order in all axis related arrays is θ₁, θ₂, Z, E
-#define HOMING_FEEDRATE {4*60, 4*60, 4*60, 0, 0}  // set the homing speeds (mm/min)
+#define NUM_AXIS 7 // The axis order in all axis related arrays is θ₁, θ₂, Z, E
+#define HOMING_FEEDRATE {4*60, 4*60, 4*60, 0, 0, 0, 0}  // set the homing speeds (mm/min)
 
 // Homing hits the endstop, then retracts by this distance, before it tries to slowly bump again.
 // For dual drives on an axis the same value is used for both drives.
@@ -357,25 +371,25 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 // Note: the extruder offset for multiple extruder machines with dual drive on an axis should be set to 0 
 //       for that axis. On that axis the positioning is controlled by the the coordinates of the homing 
 //       switches (i.e. *_MAX_POS/*_MIN_POS or MANUAL_*_HOME_POS if MANUAL_HOME_POSITIONS if defined).
-#define EXTRUDER_OFFSET_X {0.0, 180.0} // (in degrees) per extruder, offset of the extruder on the X axis
-#define EXTRUDER_OFFSET_Y {0.0, 0.0}   // (in mm) per extruder, offset of the extruder on the Y axis
+#define EXTRUDER_OFFSET_X {0.0, 180.0, 90, -90} // (in degrees) per extruder, offset of the extruder on the X axis
+#define EXTRUDER_OFFSET_Y {0.0, 0.0, 0.0, 0.0}   // (in mm) per extruder, offset of the extruder on the Y axis
 
 // default settings 
 // Units are degrees for θ₁,θ₂ and mm for Z,E
-#define DEFAULT_AXIS_STEPS_PER_UNIT   {190.123, 222.222, 5120, 664.914, 664.914}
+#define DEFAULT_AXIS_STEPS_PER_UNIT   {190.123, 222.222, 5120, 664.914, 664.914, 664.914, 664.914}
 // θ₁ Axis: 200 steps * 16 microsteps/step * (385 teeth / 18 teeth) / 360 degrees = 190.123 steps/degree
 // θ₂ Axis: 200 steps * 16 microsteps/step * (450 teeth / 18 teeth) / 360 degrees = 222.222 steps/degree
 // Z Axis: 200 steps * 16 microsteps/step * (36 teeth / 18 teeth) / 1.25 mm = 5120 steps/mm
 // E Axis: 200 steps * 16 microsteps/step * (47 teeth / 9 teeth) / 8*pi mm = 664.914 steps/mm
-#define DEFAULT_MAX_FEEDRATE          {42, 42, 1.3, 45, 45}    // degrees/sec and mm/sec
-#define DEFAULT_MAX_ACCELERATION      {5000, 5000, 100, 5000, 5000} // X,Y,Z,E0... maximum acceleration (mm/s^2). E default values are good for skeinforge 40+, for older versions raise them a lot.
+#define DEFAULT_MAX_FEEDRATE          {42, 42, 1.3, 45, 45, 45, 45}    // degrees/sec and mm/sec
+#define DEFAULT_MAX_ACCELERATION      {5000, 5000, 100, 5000, 5000, 5000, 5000} // X,Y,Z,E0... maximum acceleration (mm/s^2). E default values are good for skeinforge 40+, for older versions raise them a lot.
 
 #define DEFAULT_ACCELERATION          3000    // X, Y, Z and E max acceleration in mm/s^2 for printing moves 
-#define DEFAULT_RETRACT_ACCELERATION  {60000, 60000} // E0... (per extruder) acceleration in mm/s^2 for retracts 
+#define DEFAULT_RETRACT_ACCELERATION  {60000, 60000, 60000, 60000} // E0... (per extruder) acceleration in mm/s^2 for retracts 
 
 #define DEFAULT_XYJERK                10.0    // (mm/sec)
 #define DEFAULT_ZJERK                 5.0     // (mm/sec)
-#define DEFAULT_EJERK                 {17, 17}// E0... (mm/sec) per extruder, max initial speed for retract moves
+#define DEFAULT_EJERK                 {17, 17, 17, 17}// E0... (mm/sec) per extruder, max initial speed for retract moves
 
 //// BIPOLAR SETTINGS
 #define BIPOLAR_RADIUS 160

@@ -340,8 +340,8 @@
   #define X_STEP_PIN       54
   #define X_DIR_PIN        55
   #define X_ENABLE_PIN     38
-  #define X_MIN_PIN        3
-  #define X_MAX_PIN        2 //Max endstops default to disabled "-1", set to commented value to enable.
+  #define X_MIN_PIN        -1 //3
+  #define X_MAX_PIN        -1 //2 //Max endstops default to disabled "-1", set to commented value to enable.
 #else  // DUAL_X_DRIVE
   #define X0_STEP_PIN      54
   #define X0_DIR_PIN       55
@@ -373,6 +373,16 @@
   #define Y1_ENABLE_PIN    16
   #define Y1_MIN_PIN       -1
   #define Y1_MAX_PIN       14
+  #define Y2_STEP_PIN      27
+  #define Y2_DIR_PIN       29
+  #define Y2_ENABLE_PIN    25
+  #define Y2_MIN_PIN       -1
+  #define Y2_MAX_PIN        3
+  #define Y3_STEP_PIN      33
+  #define Y3_DIR_PIN       35
+  #define Y3_ENABLE_PIN    31
+  #define Y3_MIN_PIN       -1
+  #define Y3_MAX_PIN        2
 #endif
 
 #define Z_STEP_PIN         46
@@ -396,6 +406,18 @@
 #  define E1_DIR_PIN       34
 #  define E1_ENABLE_PIN    30
 #endif // EXTRUDERS > 1
+
+#if EXTRUDERS > 2
+#  define E2_STEP_PIN      39
+#  define E2_DIR_PIN       41
+#  define E2_ENABLE_PIN    37
+#endif // EXTRUDERS > 2
+
+#if EXTRUDERS > 3
+#  define E3_STEP_PIN      45
+#  define E3_DIR_PIN       47
+#  define E3_ENABLE_PIN    43
+#endif // EXTRUDERS > 3
 
 #define SDPOWER            -1
 #define SDSS               53
@@ -424,6 +446,7 @@
 
 #define HEATER_0_PIN       10   // EXTRUDER 1
 #define TEMP_0_PIN         13   // ANALOG NUMBERING
+
 #if EXTRUDERS > 1
 #  define HEATER_1_PIN      9   // EXTRUDER 2 
 #  define TEMP_1_PIN       15   // ANALOG NUMBERING
@@ -431,8 +454,22 @@
 #  define HEATER_1_PIN     -1
 #  define TEMP_1_PIN       -1
 #endif // EXTRUDERS > 1
-#define HEATER_2_PIN       -1
-#define TEMP_2_PIN         -1
+
+#if EXTRUDERS > 2
+#  define HEATER_2_PIN     42   // EXTRUDER 3 
+#  define TEMP_2_PIN       11   // ANALOG NUMBERING
+#else
+#  define HEATER_2_PIN     -1
+#  define TEMP_2_PIN       -1
+#endif
+
+#if EXTRUDERS > 3
+#  define HEATER_3_PIN     44   // EXTRUDER 4 
+#  define TEMP_3_PIN       12   // ANALOG NUMBERING
+#else
+#  define HEATER_3_PIN     -1
+#  define TEMP_3_PIN       -1
+#endif
 
 #define HEATER_BED_PIN      8   // BED
 #define TEMP_BED_PIN       14   // ANALOG NUMBERING

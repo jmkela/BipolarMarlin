@@ -426,8 +426,8 @@ const unsigned int dropsegments = 5;
   #define Y_MIN_POS    gYMinPos[ACTIVE_EXTRUDER]
 #endif // DUAL_Y_DRIVE
 
-#if (defined(DUAL_Y_DRIVE) || defined(DUAL_X_DRIVE)) && EXTRUDERS > 2
-  #error The dual drive configuration with more than 2 extruders is not supported.
+#if (defined(DUAL_Y_DRIVE) || defined(DUAL_X_DRIVE)) && EXTRUDERS > 4
+  #error The dual drive configuration with more than 4 extruders is not supported.
 #endif
 
 #ifdef PER_EXTRUDER_FANS
