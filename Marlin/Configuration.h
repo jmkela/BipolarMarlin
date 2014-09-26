@@ -311,8 +311,8 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 //#define X0_MIN_POS -35
 //#define X1_MIN_POS 10
 //#define Y_MAX_POS 47.4
-#define Y0_MAX_POS 47.4
-#define Y1_MAX_POS 47.4
+#define Y0_MAX_POS 47.9
+#define Y1_MAX_POS 48.0
 //#define Y_MIN_POS 0
 #define Y0_MIN_POS 0
 #define Y1_MIN_POS 0
