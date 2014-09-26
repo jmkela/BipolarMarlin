@@ -105,41 +105,43 @@ static volatile bool temp_meas_ready = false;
 
 
   
-#if EXTRUDERS > 3
+#if EXTRUDERS > 4
 # error Unsupported number of extruders
+#elif EXTRUDERS >3
+# define ARRAY_BY_EXTRUDERS(v1, v2, v3, v4) { v1, v2, v3, v4 }
 #elif EXTRUDERS > 2
-# define ARRAY_BY_EXTRUDERS(v1, v2, v3) { v1, v2, v3 }
+# define ARRAY_BY_EXTRUDERS(v1, v2, v3, v4) { v1, v2, v3 }
 #elif EXTRUDERS > 1
-# define ARRAY_BY_EXTRUDERS(v1, v2, v3) { v1, v2 }
+# define ARRAY_BY_EXTRUDERS(v1, v2, v3, v4) { v1, v2 }
 #else
-# define ARRAY_BY_EXTRUDERS(v1, v2, v3) { v1 }
+# define ARRAY_BY_EXTRUDERS(v1, v2, v3, v4) { v1 }
 #endif
 
 // Init min and max temp with extreme values to prevent false errors during startup
-static int minttemp_raw[EXTRUDERS] = ARRAY_BY_EXTRUDERS( HEATER_0_RAW_LO_TEMP , HEATER_1_RAW_LO_TEMP , HEATER_2_RAW_LO_TEMP );
-static int maxttemp_raw[EXTRUDERS] = ARRAY_BY_EXTRUDERS( HEATER_0_RAW_HI_TEMP , HEATER_1_RAW_HI_TEMP , HEATER_2_RAW_HI_TEMP );
-static int minttemp[EXTRUDERS] = ARRAY_BY_EXTRUDERS( 0, 0, 0 );
-static int maxttemp[EXTRUDERS] = ARRAY_BY_EXTRUDERS( 16383, 16383, 16383 );
+static int minttemp_raw[EXTRUDERS] = ARRAY_BY_EXTRUDERS( HEATER_0_RAW_LO_TEMP , HEATER_1_RAW_LO_TEMP , HEATER_2_RAW_LO_TEMP , HEATER_3_RAW_LO_TEMP );
+static int maxttemp_raw[EXTRUDERS] = ARRAY_BY_EXTRUDERS( HEATER_0_RAW_HI_TEMP , HEATER_1_RAW_HI_TEMP , HEATER_2_RAW_HI_TEMP , HEATER_3_RAW_HI_TEMP );
+static int minttemp[EXTRUDERS] = ARRAY_BY_EXTRUDERS( 0, 0, 0, 0 );
+static int maxttemp[EXTRUDERS] = ARRAY_BY_EXTRUDERS( 16383, 16383, 16383 , 16383 );
 #ifdef BED_MINTEMP
 static int bed_minttemp_raw = HEATER_BED_RAW_LO_TEMP;
 #endif // BED_MINTEMP
 #ifdef BED_MAXTEMP
 static int bed_maxttemp_raw = HEATER_BED_RAW_HI_TEMP;
 #endif // BED_MAXTEMP
-static void *heater_ttbl_map[EXTRUDERS] = ARRAY_BY_EXTRUDERS( (void *)HEATER_0_TEMPTABLE, (void *)HEATER_1_TEMPTABLE, (void *)HEATER_2_TEMPTABLE );
-static uint8_t heater_ttbllen_map[EXTRUDERS] = ARRAY_BY_EXTRUDERS( HEATER_0_TEMPTABLE_LEN, HEATER_1_TEMPTABLE_LEN, HEATER_2_TEMPTABLE_LEN );
+static void *heater_ttbl_map[EXTRUDERS] = ARRAY_BY_EXTRUDERS( (void *)HEATER_0_TEMPTABLE, (void *)HEATER_1_TEMPTABLE, (void *)HEATER_2_TEMPTABLE , (void *)HEATER_3_TEMPTABLE );
+static uint8_t heater_ttbllen_map[EXTRUDERS] = ARRAY_BY_EXTRUDERS( HEATER_0_TEMPTABLE_LEN, HEATER_1_TEMPTABLE_LEN, HEATER_2_TEMPTABLE_LEN , HEATER_3_TEMPTABLE_LEN );
 
 static float analog2temp(int raw, uint8_t e);
 static float analog2tempBed(int raw);
 static void updateTemperaturesFromRawValues();
 
 #ifdef WATCH_TEMP_PERIOD
-int watch_start_temp[EXTRUDERS] = ARRAY_BY_EXTRUDERS(0,0,0);
-unsigned long watchmillis[EXTRUDERS] = ARRAY_BY_EXTRUDERS(0,0,0);
+int watch_start_temp[EXTRUDERS] = ARRAY_BY_EXTRUDERS(0,0,0,0);
+unsigned long watchmillis[EXTRUDERS] = ARRAY_BY_EXTRUDERS(0,0,0,0);
 #endif //WATCH_TEMP_PERIOD
 
 #ifdef PER_EXTRUDER_FANS
-int fan_pin[EXTRUDERS] = ARRAY_BY_EXTRUDERS(FAN0_PIN, FAN1_PIN, FAN2_PIN);
+int fan_pin[EXTRUDERS] = ARRAY_BY_EXTRUDERS(FAN0_PIN, FAN1_PIN, FAN2_PIN, FAN3_PIN);
 #endif //PER_EXTRUDER_FANS
 
 //===========================================================================

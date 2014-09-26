@@ -134,13 +134,17 @@ void manage_inactivity();
 #if !defined(DUAL_Y_DRIVE) && (Y_ENABLE_PIN > -1)
   #define enable_y() WRITE(Y_ENABLE_PIN, Y_ENABLE_ON)
   #define disable_y() WRITE(Y_ENABLE_PIN,!Y_ENABLE_ON)
-#elif defined(DUAL_Y_DRIVE) && (Y0_ENABLE_PIN > -1) && (Y1_ENABLE_PIN > -1)
+#elif defined(DUAL_Y_DRIVE) && (Y0_ENABLE_PIN > -1) && (Y1_ENABLE_PIN > -1) && (Y2_ENABLE_PIN > -1) && (Y3_ENABLE_PIN > -1) 
   #define enable_y0()  WRITE(Y0_ENABLE_PIN, Y_ENABLE_ON)
   #define disable_y0() WRITE(Y0_ENABLE_PIN,!Y_ENABLE_ON)
   #define enable_y1()  WRITE(Y1_ENABLE_PIN, Y_ENABLE_ON)
   #define disable_y1() WRITE(Y1_ENABLE_PIN,!Y_ENABLE_ON)
-  #define enable_y()   { enable_y0(); enable_y1(); }
-  #define disable_y()  { disable_y0(); disable_y1(); }
+  #define enable_y2()  WRITE(Y2_ENABLE_PIN, Y_ENABLE_ON)
+  #define disable_y2() WRITE(Y2_ENABLE_PIN,!Y_ENABLE_ON)
+  #define enable_y3()  WRITE(Y3_ENABLE_PIN, Y_ENABLE_ON)
+  #define disable_y3() WRITE(Y3_ENABLE_PIN,!Y_ENABLE_ON)
+  #define enable_y()   { enable_y0(); enable_y1(); enable_y3(); enable_y3(); }
+  #define disable_y()  { disable_y0(); disable_y1(); disable_y2(); disable_y3(); }
 #else
   #define enable_y() /* nothing */ 
   #define disable_y() /* nothing */
@@ -148,6 +152,10 @@ void manage_inactivity();
   #define disable_y0() /* nothing */
   #define enable_y1() /* nothing */
   #define disable_y1() /* nothing */
+  #define enable_y2() /* nothing */
+  #define disable_y2() /* nothing */
+  #define enable_y3() /* nothing */
+  #define disable_y3() /* nothing */
 #endif
 
 #if Z_ENABLE_PIN > -1
@@ -185,6 +193,14 @@ void manage_inactivity();
 #else
   #define enable_e2()  /* nothing */
   #define disable_e2() /* nothing */
+#endif
+
+#if (EXTRUDERS > 3) && defined(E3_ENABLE_PIN) && (E3_ENABLE_PIN > -1)
+  #define enable_e3() WRITE(E3_ENABLE_PIN, E_ENABLE_ON)
+  #define disable_e3() WRITE(E3_ENABLE_PIN,!E_ENABLE_ON)
+#else
+  #define enable_e3()  /* nothing */
+  #define disable_e3() /* nothing */
 #endif
 
 

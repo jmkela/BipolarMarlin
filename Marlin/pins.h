@@ -342,6 +342,10 @@
   #define X_ENABLE_PIN     38
   #define X_MIN_PIN        -1 //3
   #define X_MAX_PIN        -1 //2 //Max endstops default to disabled "-1", set to commented value to enable.
+  #define X0_MIN_PIN       -1
+  #define X0_MAX_PIN       -1
+  #define X1_MIN_PIN       -1
+  #define X1_MAX_PIN       -1
 #else  // DUAL_X_DRIVE
   #define X0_STEP_PIN      54
   #define X0_DIR_PIN       55
@@ -434,6 +438,8 @@
 #elif defined(PER_EXTRUDER_FANS)
 #define FAN0_PIN           4 // 2 hotends, 1st hotend fan, using SER4 connector, external MOSFET
 #define FAN1_PIN           5 // 2 hotends, 2nd hotend fan, using SER3 connector, external MOSFET
+#define FAN2_PIN           6
+#define FAN3_PIN           11
 #endif
 
 #define PS_ON_PIN          12

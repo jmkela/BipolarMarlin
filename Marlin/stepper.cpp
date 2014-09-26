@@ -567,7 +567,7 @@ FORCE_INLINE void check_endstops()
 {
   // Check limit switches
   if ((out_bits & (1<<X_AXIS)) != 0) {   // stepping along -X axis
-    #if X_MIN_PIN > -1 || X0_MIN_PIN > -1 || X1_MIN_PIN > -1
+    #if (X_MIN_PIN > -1) || (X0_MIN_PIN > -1) || (X1_MIN_PIN > -1)
     #ifdef DUAL_X_DRIVE
     if(endstops_enabled && !min_x_endstop_ignore[current_e])
     {
@@ -595,7 +595,7 @@ FORCE_INLINE void check_endstops()
     #endif
   }
   else { // +direction
-    #if X_MAX_PIN > -1 || X0_MAX_PIN > -1 || X1_MAX_PIN > -1
+    #if (X_MAX_PIN > -1) || (X0_MAX_PIN > -1) || (X1_MAX_PIN > -1)
     #ifdef DUAL_X_DRIVE
     if(endstops_enabled && !max_x_endstop_ignore[current_e])
     {
@@ -624,7 +624,7 @@ FORCE_INLINE void check_endstops()
   }
 
   if ((out_bits & (1<<Y_AXIS)) != 0) {   // -direction
-    #if Y_MIN_PIN > -1 || Y0_MIN_PIN > -1 || Y1_MIN_PIN > -1
+    #if (Y_MIN_PIN > -1) || (Y0_MIN_PIN > -1) || (Y1_MIN_PIN > -1)
     #ifdef DUAL_Y_DRIVE
     if(endstops_enabled && !min_y_endstop_ignore[current_e])
     {
@@ -652,7 +652,7 @@ FORCE_INLINE void check_endstops()
     #endif
   }
   else { // +direction
-    #if Y_MAX_PIN > -1 || Y0_MAX_PIN > -1 || Y1_MAX_PIN > -1
+    #if (Y_MAX_PIN > -1) || (Y0_MAX_PIN > -1) || (Y1_MAX_PIN > -1)
     #ifdef DUAL_Y_DRIVE
     if(endstops_enabled && !max_y_endstop_ignore[current_e])
     {
