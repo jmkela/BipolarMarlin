@@ -261,7 +261,7 @@ const bool Z_ENDSTOPS_INVERTING = false; // set to true to invert the logic of t
 //#define DISABLE_MAX_ENDSTOPS
 
 // If the machine can independently move the second extruder on the X or Y axis
-// uncomment the appropriate define and uncomment/use paramters with X0/X1/Y0/Y1 
+// uncomment the appropriate define and uncomment/use paramters with X0/X1 or Y0/Y1/Y2/Y3
 // instead of X/Y in their name (those are dual drive specific).
 //#define DUAL_X_DRIVE
 #define DUAL_Y_DRIVE

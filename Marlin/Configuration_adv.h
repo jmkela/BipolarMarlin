@@ -87,6 +87,8 @@
   #ifdef DUAL_Y_DRIVE
     #define Y0_HOME_POS MANUAL_Y0_HOME_POS
     #define Y1_HOME_POS MANUAL_Y1_HOME_POS
+    #define Y2_HOME_POS MANUAL_Y2_HOME_POS
+    #define Y3_HOME_POS MANUAL_Y3_HOME_POS
   #else
     #define Y_HOME_POS MANUAL_Y_HOME_POS
   #endif
@@ -139,6 +141,24 @@
       #define Y1_IGNORE_MAX_ENDSTOP false
       #define Y1_IGNORE_MIN_ENDSTOP true
     #endif //Y1_HOME_DIR == -1
+    #if Y2_HOME_DIR == -1
+      #define Y2_HOME_POS Y2_MIN_POS
+      #define Y2_IGNORE_MAX_ENDSTOP true
+      #define Y2_IGNORE_MIN_ENDSTOP false
+    #else    
+      #define Y2_HOME_POS Y2_MAX_POS
+      #define Y2_IGNORE_MAX_ENDSTOP false
+      #define Y2_IGNORE_MIN_ENDSTOP true
+    #endif //Y2_HOME_DIR == -1
+    #if Y3_HOME_DIR == -1
+      #define Y3_HOME_POS Y3_MIN_POS
+      #define Y3_IGNORE_MAX_ENDSTOP true
+      #define Y3_IGNORE_MIN_ENDSTOP false
+    #else    
+      #define Y3_HOME_POS Y3_MAX_POS
+      #define Y3_IGNORE_MAX_ENDSTOP false
+      #define Y3_IGNORE_MIN_ENDSTOP true
+    #endif //Y3_HOME_DIR == -1
   #else
     #if Y_HOME_DIR == -1
       #define Y_HOME_POS Y_MIN_POS

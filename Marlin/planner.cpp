@@ -573,6 +573,7 @@ void check_axes_activity()
     disable_e0();
     disable_e1();
     disable_e2(); 
+    disable_e3(); 
   }
 #ifndef FAN_SOFT_PWM
   for(uint8_t e = 0; e < EXTRUDERS; e++) 
@@ -774,6 +775,7 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
     enable_e0();
     enable_e1();
     enable_e2(); 
+    enable_e3(); 
   }
 
   if (block->steps_e == 0)

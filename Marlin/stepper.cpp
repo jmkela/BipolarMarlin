@@ -107,9 +107,13 @@ static bool max_x_endstop_ignore[EXTRUDERS] = { X0_IGNORE_MAX_ENDSTOP,
 #endif // DUAL_X_DRIVE
 #ifdef DUAL_Y_DRIVE
 static bool min_y_endstop_ignore[EXTRUDERS] = { Y0_IGNORE_MIN_ENDSTOP, 
-                                               Y1_IGNORE_MIN_ENDSTOP };
+                                                Y1_IGNORE_MIN_ENDSTOP,
+                                                Y2_IGNORE_MIN_ENDSTOP,
+                                                Y3_IGNORE_MIN_ENDSTOP };
 static bool max_y_endstop_ignore[EXTRUDERS] = { Y0_IGNORE_MAX_ENDSTOP, 
-                                               Y1_IGNORE_MAX_ENDSTOP };
+                                                Y1_IGNORE_MAX_ENDSTOP,
+                                                Y2_IGNORE_MAX_ENDSTOP,
+                                                Y3_IGNORE_MAX_ENDSTOP };
 #endif // DUAL_Y_DRIVE
 
 //===========================================================================
@@ -221,6 +225,7 @@ void checkHitEndstops()
      setTargetHotend0(0);
      setTargetHotend1(0);
      setTargetHotend2(0);
+     setTargetHotend3(0);
    }
 #endif
  }
@@ -458,6 +463,14 @@ FORCE_INLINE void set_directions()
           if(!(follow_mir & 2)) { WRITE(X1_DIR_PIN, !INVERT_X1_DIR); }
           else                  { WRITE(X1_DIR_PIN, INVERT_X1_DIR); }
         }
+        if(current_e==2 || (follow_me & 3)!=0) { 
+          if(!(follow_mir & 3)) { WRITE(X2_DIR_PIN, !INVERT_X2_DIR); }
+          else                  { WRITE(X2_DIR_PIN, INVERT_X2_DIR); }
+        }
+        if(current_e==3 || (follow_me & 4)!=0) { 
+          if(!(follow_mir & 4)) { WRITE(X3_DIR_PIN, !INVERT_X3_DIR); }
+          else                  { WRITE(X3_DIR_PIN, INVERT_X3_DIR); }
+        }
       #endif
     #endif
     count_direction[X_AXIS]=1;
@@ -492,6 +505,14 @@ FORCE_INLINE void set_directions()
         if(current_e==1 || (follow_me & 2)!=0) {
           if(!(follow_mir & 2)) { WRITE(Y1_DIR_PIN, !INVERT_Y1_DIR); }
           else                  { WRITE(Y1_DIR_PIN, INVERT_Y1_DIR); }
+        }
+        if(current_e==2 || (follow_me & 3)!=0) {
+          if(!(follow_mir & 3)) { WRITE(Y2_DIR_PIN, !INVERT_Y2_DIR); }
+          else                  { WRITE(Y2_DIR_PIN, INVERT_Y2_DIR); }
+        }
+        if(current_e==3 || (follow_me & 4)!=0) {
+          if(!(follow_mir & 4)) { WRITE(Y3_DIR_PIN, !INVERT_Y3_DIR); }
+          else                  { WRITE(Y3_DIR_PIN, INVERT_Y3_DIR); }
         }
       #endif
     #endif
@@ -534,8 +555,11 @@ FORCE_INLINE void set_directions()
 
   #ifndef C_COMPENSATION
   if ((out_bits & (1<<E_AXIS)) != 0) {  // -direction
+    #if EXTRUDERS > 3
+    if(current_e==3 || (follow_me & 4)!=0) { WRITE(E3_DIR_PIN, INVERT_E3_DIR); }
+    #endif
     #if EXTRUDERS > 2
-    if(current_e==2 || (follow_me & 4)!=0) { WRITE(E2_DIR_PIN, INVERT_E2_DIR); }
+    if(current_e==2 || (follow_me & 3)!=0) { WRITE(E2_DIR_PIN, INVERT_E2_DIR); }
     #endif
     #if EXTRUDERS > 1
     if(current_e==1 || (follow_me & 2)!=0) { WRITE(E1_DIR_PIN, INVERT_E1_DIR); }
@@ -547,7 +571,10 @@ FORCE_INLINE void set_directions()
   }
   else { // +direction
     #if EXTRUDERS > 2
-    if(current_e==2 || (follow_me & 4)!=0) { WRITE(E2_DIR_PIN, !INVERT_E2_DIR); }
+    if(current_e==3 || (follow_me & 4)!=0) { WRITE(E3_DIR_PIN, !INVERT_E3_DIR); }
+    #endif
+    #if EXTRUDERS > 2
+    if(current_e==2 || (follow_me & 3)!=0) { WRITE(E2_DIR_PIN, !INVERT_E2_DIR); }
     #endif
     #if EXTRUDERS > 1
     if(current_e==1 || (follow_me & 2)!=0) { WRITE(E1_DIR_PIN, !INVERT_E1_DIR); }
@@ -624,7 +651,7 @@ FORCE_INLINE void check_endstops()
   }
 
   if ((out_bits & (1<<Y_AXIS)) != 0) {   // -direction
-    #if (Y_MIN_PIN > -1) || (Y0_MIN_PIN > -1) || (Y1_MIN_PIN > -1)
+    #if (Y_MIN_PIN > -1) || (Y0_MIN_PIN > -1) || (Y1_MIN_PIN > -1) || (Y2_MIN_PIN > -1) || (Y3_MIN_PIN > -1)
     #ifdef DUAL_Y_DRIVE
     if(endstops_enabled && !min_y_endstop_ignore[current_e])
     {
@@ -636,6 +663,14 @@ FORCE_INLINE void check_endstops()
       #if Y1_MIN_PIN > -1
       if (active_extruder == 1)
         y_min_endstop = (READ(Y1_MIN_PIN) != Y_ENDSTOPS_INVERTING);
+      #endif
+      #if Y2_MIN_PIN > -1
+      if (active_extruder == 2)
+        y_min_endstop = (READ(Y2_MIN_PIN) != Y_ENDSTOPS_INVERTING);
+      #endif
+      #if Y3_MIN_PIN > -1
+      if (active_extruder == 3)
+        y_min_endstop = (READ(Y3_MIN_PIN) != Y_ENDSTOPS_INVERTING);
       #endif
     #else // DUAL_Y_DRIVE
     if(endstops_enabled)
@@ -652,7 +687,7 @@ FORCE_INLINE void check_endstops()
     #endif
   }
   else { // +direction
-    #if (Y_MAX_PIN > -1) || (Y0_MAX_PIN > -1) || (Y1_MAX_PIN > -1)
+    #if (Y_MAX_PIN > -1) || (Y0_MAX_PIN > -1) || (Y1_MAX_PIN > -1) || (Y2_MAX_PIN > -1) || (Y3_MAX_PIN > -1)
     #ifdef DUAL_Y_DRIVE
     if(endstops_enabled && !max_y_endstop_ignore[current_e])
     {
@@ -664,6 +699,14 @@ FORCE_INLINE void check_endstops()
       #if Y1_MAX_PIN > -1
       if (active_extruder == 1)
         y_max_endstop = (READ(Y1_MAX_PIN) != Y_ENDSTOPS_INVERTING);
+      #endif
+      #if Y2_MAX_PIN > -1
+      if (active_extruder == 2)
+        y_max_endstop = (READ(Y2_MAX_PIN) != Y_ENDSTOPS_INVERTING);
+      #endif
+      #if Y3_MAX_PIN > -1
+      if (active_extruder == 3)
+        y_max_endstop = (READ(Y3_MAX_PIN) != Y_ENDSTOPS_INVERTING);
       #endif
     #else // DUAL_Y_DRIVE
     if(endstops_enabled)
@@ -749,6 +792,8 @@ FORCE_INLINE void make_normal_steps()
         #else
         if(current_e==0 || (follow_me & 1)!=0) { WRITE(Y0_STEP_PIN, !INVERT_Y_STEP_PIN); }
         if(current_e==1 || (follow_me & 2)!=0) { WRITE(Y1_STEP_PIN, !INVERT_Y_STEP_PIN); }
+        if(current_e==2 || (follow_me & 3)!=0) { WRITE(Y2_STEP_PIN, !INVERT_Y_STEP_PIN); }
+        if(current_e==3 || (follow_me & 4)!=0) { WRITE(Y3_STEP_PIN, !INVERT_Y_STEP_PIN); }
         #endif
         counter_y -= current_block->step_event_count; 
         count_position[Y_AXIS]+=count_direction[Y_AXIS]; 
@@ -757,6 +802,8 @@ FORCE_INLINE void make_normal_steps()
         #else
         WRITE(Y0_STEP_PIN, INVERT_Y_STEP_PIN);
         WRITE(Y1_STEP_PIN, INVERT_Y_STEP_PIN);
+        WRITE(Y2_STEP_PIN, INVERT_Y_STEP_PIN);
+        WRITE(Y3_STEP_PIN, INVERT_Y_STEP_PIN);
         #endif
       }
     #endif
@@ -832,7 +879,8 @@ FORCE_INLINE void make_normal_steps()
       counter_e -= current_block->step_event_count;
       if ((out_bits & (1<<E_AXIS)) != 0) { // - direction
         #if EXTRUDERS > 1
-        if(current_e==2 || (follow_me & 4)!=0) e_steps[2]--;
+        if(current_e==3 || (follow_me & 4)!=0) e_steps[3]--;
+        if(current_e==2 || (follow_me & 3)!=0) e_steps[2]--;
         if(current_e==1 || (follow_me & 2)!=0) e_steps[1]--;
         if(current_e==0 || (follow_me & 1)!=0) e_steps[0]--;
         #else  // EXTRUDERS > 1
@@ -842,7 +890,8 @@ FORCE_INLINE void make_normal_steps()
       }
       else {
         #if EXTRUDERS > 1
-        if(current_e==2 || (follow_me & 4)!=0) e_steps[2]++;
+        if(current_e==3 || (follow_me & 4)!=0) e_steps[3]++;
+        if(current_e==2 || (follow_me & 3)!=0) e_steps[2]++;
         if(current_e==1 || (follow_me & 2)!=0) e_steps[1]++;
         if(current_e==0 || (follow_me & 1)!=0) e_steps[0]++;
         #else  // EXTRUDERS > 1
@@ -851,8 +900,11 @@ FORCE_INLINE void make_normal_steps()
         count_position[E_AXIS]++;
       }
       #else // C_COMPENSATION
+      #if EXTRUDERS > 3
+      if(current_e==3 || (follow_me & 4)!=0) { WRITE(E3_STEP_PIN, !INVERT_E_STEP_PIN); }
+      #endif
       #if EXTRUDERS > 2
-      if(current_e==2 || (follow_me & 4)!=0) { WRITE(E2_STEP_PIN, !INVERT_E_STEP_PIN); }
+      if(current_e==2 || (follow_me & 3)!=0) { WRITE(E2_STEP_PIN, !INVERT_E_STEP_PIN); }
       #endif
       #if EXTRUDERS > 1
       if(current_e==1 || (follow_me & 2)!=0) { WRITE(E1_STEP_PIN, !INVERT_E_STEP_PIN); }
@@ -862,6 +914,9 @@ FORCE_INLINE void make_normal_steps()
       #endif // EXTRUDERS > 1
       counter_e -= current_block->step_event_count;
       count_position[E_AXIS]+=count_direction[E_AXIS];
+      #if EXTRUDERS > 3
+      WRITE(E3_STEP_PIN, INVERT_E_STEP_PIN);
+      #endif
       #if EXTRUDERS > 2
       WRITE(E2_STEP_PIN, INVERT_E_STEP_PIN);
       #endif
@@ -927,6 +982,20 @@ FORCE_INLINE void make_comp_e_steps(unsigned short e_steps_left)
       WRITE(E2_STEP_PIN, !INVERT_E_STEP_PIN);
     }
     #endif // EXTRUDERS > 2
+    #if EXTRUDERS > 3
+    if (e_steps[3] != 0) {
+      WRITE(E3_STEP_PIN, INVERT_E_STEP_PIN);
+      if (e_steps[3] < 0) {
+        WRITE(E3_DIR_PIN, INVERT_E3_DIR);
+        e_steps[3]++;
+      } 
+      else {
+        WRITE(E3_DIR_PIN, !INVERT_E3_DIR);
+        e_steps[3]--;
+      }
+      WRITE(E3_STEP_PIN, !INVERT_E_STEP_PIN);
+    }
+    #endif // EXTRUDERS > 3
     --total_e_steps_left;
     --e_steps_left;
   }
@@ -1087,6 +1156,9 @@ do_split_e_steps:
   #if EXTRUDERS > 2
   e_steps_left = max(e_steps_left, labs(e_steps[2]));
   #endif // EXTRUDERS > 2
+  #if EXTRUDERS > 3
+  e_steps_left = max(e_steps_left, labs(e_steps[3]));
+  #endif // EXTRUDERS > 3
   total_e_steps_left = e_steps_left;
   
   #ifdef C_COMPENSATION_SPLIT_E_STEPS
@@ -1130,6 +1202,12 @@ void st_init()
   #if defined(X1_DIR_PIN) && X1_DIR_PIN > -1
     SET_OUTPUT(X1_DIR_PIN);
   #endif
+  #if defined(X2_DIR_PIN) && X2_DIR_PIN > -1
+    SET_OUTPUT(X2_DIR_PIN);
+  #endif
+  #if defined(X3_DIR_PIN) && X3_DIR_PIN > -1
+    SET_OUTPUT(X3_DIR_PIN);
+  #endif
 
   #if defined(Y_DIR_PIN) && Y_DIR_PIN > -1 
     SET_OUTPUT(Y_DIR_PIN);
@@ -1139,6 +1217,12 @@ void st_init()
   #endif
   #if defined(Y1_DIR_PIN) && Y1_DIR_PIN > -1 
     SET_OUTPUT(Y1_DIR_PIN);
+  #endif
+  #if defined(Y2_DIR_PIN) && Y2_DIR_PIN > -1 
+    SET_OUTPUT(Y2_DIR_PIN);
+  #endif
+  #if defined(Y3_DIR_PIN) && Y3_DIR_PIN > -1 
+    SET_OUTPUT(Y3_DIR_PIN);
   #endif
 
   #if Z_DIR_PIN > -1 
@@ -1157,6 +1241,9 @@ void st_init()
   #if defined(E2_DIR_PIN) && (E2_DIR_PIN > -1)
     SET_OUTPUT(E2_DIR_PIN);
   #endif
+  #if defined(E3_DIR_PIN) && (E3_DIR_PIN > -1)
+    SET_OUTPUT(E3_DIR_PIN);
+  #endif
 
   //Initialize Enable Pins - steppers default to disabled.
 
@@ -1172,6 +1259,14 @@ void st_init()
     SET_OUTPUT(X1_ENABLE_PIN);
     if(!X_ENABLE_ON) WRITE(X1_ENABLE_PIN,HIGH);
   #endif
+  #if defined(X2_ENABLE_PIN) && (X2_ENABLE_PIN > -1)
+    SET_OUTPUT(X2_ENABLE_PIN);
+    if(!X_ENABLE_ON) WRITE(X2_ENABLE_PIN,HIGH);
+  #endif
+  #if defined(X3_ENABLE_PIN) && (X3_ENABLE_PIN > -1)
+    SET_OUTPUT(X3_ENABLE_PIN);
+    if(!X_ENABLE_ON) WRITE(X3_ENABLE_PIN,HIGH);
+  #endif
 
   #if defined(Y_ENABLE_PIN) && (Y_ENABLE_PIN > -1)
     SET_OUTPUT(Y_ENABLE_PIN);
@@ -1184,6 +1279,14 @@ void st_init()
   #if defined(Y1_ENABLE_PIN) && (Y1_ENABLE_PIN > -1)
     SET_OUTPUT(Y1_ENABLE_PIN);
     if(!Y_ENABLE_ON) WRITE(Y1_ENABLE_PIN,HIGH);
+  #endif
+  #if defined(Y2_ENABLE_PIN) && (Y2_ENABLE_PIN > -1)
+    SET_OUTPUT(Y2_ENABLE_PIN);
+    if(!Y_ENABLE_ON) WRITE(Y2_ENABLE_PIN,HIGH);
+  #endif
+  #if defined(Y3_ENABLE_PIN) && (Y3_ENABLE_PIN > -1)
+    SET_OUTPUT(Y3_ENABLE_PIN);
+    if(!Y_ENABLE_ON) WRITE(Y3_ENABLE_PIN,HIGH);
   #endif
 
   #if (Z_ENABLE_PIN > -1)
@@ -1207,6 +1310,10 @@ void st_init()
   #if defined(E2_ENABLE_PIN) && (E2_ENABLE_PIN > -1)
     SET_OUTPUT(E2_ENABLE_PIN);
     if(!E_ENABLE_ON) WRITE(E2_ENABLE_PIN,HIGH);
+  #endif
+  #if defined(E3_ENABLE_PIN) && (E3_ENABLE_PIN > -1)
+    SET_OUTPUT(E3_ENABLE_PIN);
+    if(!E_ENABLE_ON) WRITE(E3_ENABLE_PIN,HIGH);
   #endif
 
   //endstops and pullups
@@ -1244,6 +1351,18 @@ void st_init()
       SET_INPUT(Y1_MIN_PIN); 
       #ifdef ENDSTOPPULLUP_YMIN
         WRITE(Y1_MIN_PIN,HIGH);
+      #endif
+    #endif
+    #if Y2_MIN_PIN > -1
+      SET_INPUT(Y2_MIN_PIN); 
+      #ifdef ENDSTOPPULLUP_YMIN
+        WRITE(Y2_MIN_PIN,HIGH);
+      #endif
+    #endif
+    #if Y3_MIN_PIN > -1
+      SET_INPUT(Y3_MIN_PIN); 
+      #ifdef ENDSTOPPULLUP_YMIN
+        WRITE(Y3_MIN_PIN,HIGH);
       #endif
     #endif
   #else
@@ -1297,6 +1416,18 @@ void st_init()
         WRITE(Y1_MAX_PIN,HIGH);
       #endif
     #endif
+    #if Y2_MAX_PIN > -1
+      SET_INPUT(Y2_MAX_PIN); 
+      #ifdef ENDSTOPPULLUP_YMAX
+        WRITE(Y2_MAX_PIN,HIGH);
+      #endif
+    #endif
+    #if Y3_MAX_PIN > -1
+      SET_INPUT(Y3_MAX_PIN); 
+      #ifdef ENDSTOPPULLUP_YMAX
+        WRITE(Y3_MAX_PIN,HIGH);
+      #endif
+    #endif
   #else
     #if Y_MAX_PIN > -1
       SET_INPUT(Y_MAX_PIN); 
@@ -1345,6 +1476,16 @@ void st_init()
     WRITE(Y1_STEP_PIN,INVERT_Y_STEP_PIN);
     disable_y1();
   #endif
+  #if defined(Y2_STEP_PIN) && (Y2_STEP_PIN > -1) 
+    SET_OUTPUT(Y2_STEP_PIN);
+    WRITE(Y2_STEP_PIN,INVERT_Y_STEP_PIN);
+    disable_y2();
+  #endif
+  #if defined(Y3_STEP_PIN) && (Y3_STEP_PIN > -1) 
+    SET_OUTPUT(Y3_STEP_PIN);
+    WRITE(Y3_STEP_PIN,INVERT_Y_STEP_PIN);
+    disable_y3();
+  #endif
 
   #if (Z_STEP_PIN > -1) 
     SET_OUTPUT(Z_STEP_PIN);
@@ -1370,6 +1511,11 @@ void st_init()
     SET_OUTPUT(E2_STEP_PIN);
     WRITE(E2_STEP_PIN,INVERT_E_STEP_PIN);
     disable_e2();
+  #endif  
+  #if defined(E3_STEP_PIN) && (E3_STEP_PIN > -1) 
+    SET_OUTPUT(E3_STEP_PIN);
+    WRITE(E3_STEP_PIN,INVERT_E_STEP_PIN);
+    disable_e3();
   #endif  
 
   #ifdef CONTROLLERFAN_PIN
@@ -1453,6 +1599,7 @@ void finishAndDisableSteppers()
   disable_e0(); 
   disable_e1(); 
   disable_e2(); 
+  disable_e3(); 
 }
 
 void quickStop()
@@ -1509,10 +1656,14 @@ void microstep_init()
   #else // DUAL_Y_DRIVE
     pinMode(Y0_MS2_PIN,OUTPUT);
     pinMode(Y1_MS2_PIN,OUTPUT);
+    pinMode(Y2_MS2_PIN,OUTPUT);
+    pinMode(Y3_MS2_PIN,OUTPUT);
   #endif // DUAL_Y_DRIVE
   pinMode(Z_MS2_PIN,OUTPUT);
   pinMode(E0_MS2_PIN,OUTPUT);
   pinMode(E1_MS2_PIN,OUTPUT);
+  pinMode(E2_MS2_PIN,OUTPUT);
+  pinMode(E3_MS2_PIN,OUTPUT);
   for(int i=0;i<=4;i++) microstep_mode(i,microstep_modes[i]);
   #endif //ENABLE_MICROSTEPPING_CONTROL
 }
@@ -1535,10 +1686,14 @@ void microstep_ms(uint8_t driver, int8_t ms1, int8_t ms2)
     #else // DUAL_Y_DRIVE
       digitalWrite( Y0_MS1_PIN,ms1); break;
       digitalWrite( Y1_MS1_PIN,ms1); break;
+      digitalWrite( Y2_MS1_PIN,ms1); break;
+      digitalWrite( Y3_MS1_PIN,ms1); break;
     #endif // DUAL_Y_DRIVE
     case 2: digitalWrite( Z_MS1_PIN,ms1); break;
     case 3: digitalWrite(E0_MS1_PIN,ms1); break;
     case 4: digitalWrite(E1_MS1_PIN,ms1); break;
+    case 5: digitalWrite(E2_MS1_PIN,ms1); break;
+    case 6: digitalWrite(E3_MS1_PIN,ms1); break;
   }
   if(ms2 > -1) switch(driver)
   {
@@ -1555,10 +1710,14 @@ void microstep_ms(uint8_t driver, int8_t ms1, int8_t ms2)
     #else // DUAL_Y_DRIVE
       digitalWrite( Y0_MS2_PIN,ms2); break;
       digitalWrite( Y1_MS2_PIN,ms2); break;
+      digitalWrite( Y2_MS2_PIN,ms2); break;
+      digitalWrite( Y3_MS2_PIN,ms2); break;
     #endif // DUAL_Y_DRIVE
     case 2: digitalWrite( Z_MS2_PIN,ms2); break;
     case 3: digitalWrite(E0_MS2_PIN,ms2); break;
     case 4: digitalWrite(E1_MS2_PIN,ms2); break;
+    case 5: digitalWrite(E2_MS2_PIN,ms2); break;
+    case 6: digitalWrite(E3_MS2_PIN,ms2); break;
   }
 }
 
@@ -1600,6 +1759,12 @@ void microstep_readings()
       SERIAL_PROTOCOLPGM("T1: ");
       SERIAL_PROTOCOL(   digitalRead(Y1_MS1_PIN));
       SERIAL_PROTOCOLLN( digitalRead(Y1_MS2_PIN));
+      SERIAL_PROTOCOLPGM("T2: ");
+      SERIAL_PROTOCOL(   digitalRead(Y2_MS1_PIN));
+      SERIAL_PROTOCOLLN( digitalRead(Y2_MS2_PIN));
+      SERIAL_PROTOCOLPGM("T3: ");
+      SERIAL_PROTOCOL(   digitalRead(Y3_MS1_PIN));
+      SERIAL_PROTOCOLLN( digitalRead(Y3_MS2_PIN));
       #endif // DUAL_Y_DRIVE
       SERIAL_PROTOCOLPGM("Z: ");
       SERIAL_PROTOCOL(   digitalRead(Z_MS1_PIN));
@@ -1610,6 +1775,12 @@ void microstep_readings()
       SERIAL_PROTOCOLPGM("E1: ");
       SERIAL_PROTOCOL(   digitalRead(E1_MS1_PIN));
       SERIAL_PROTOCOLLN( digitalRead(E1_MS2_PIN));
+      SERIAL_PROTOCOLPGM("E2: ");
+      SERIAL_PROTOCOL(   digitalRead(E2_MS1_PIN));
+      SERIAL_PROTOCOLLN( digitalRead(E2_MS2_PIN));
+      SERIAL_PROTOCOLPGM("E3: ");
+      SERIAL_PROTOCOL(   digitalRead(E3_MS1_PIN));
+      SERIAL_PROTOCOLLN( digitalRead(E3_MS2_PIN));
 }
 #endif //ENABLE_MICROSTEPPING_CONTROL
 

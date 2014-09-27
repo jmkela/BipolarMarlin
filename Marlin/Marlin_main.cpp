@@ -185,7 +185,7 @@ float e_last_position[EXTRUDERS];
   float x_last_position[EXTRUDERS] = {X0_HOME_POS, X1_HOME_POS};
 #endif
 #ifdef DUAL_Y_DRIVE
-  float y_last_position[EXTRUDERS] = {Y0_HOME_POS, Y1_HOME_POS};
+  float y_last_position[EXTRUDERS] = {Y0_HOME_POS, Y1_HOME_POS, Y2_HOME_POS, Y3_HOME_POS};
 #endif
 #ifdef ENABLE_ADD_HOMEING
 float add_homeing[EXTRUDERS][3];
@@ -211,8 +211,8 @@ float extruder_offset[2][EXTRUDERS] = {
 #endif // DUAL_X_DRIVE
   
 #ifdef DUAL_Y_DRIVE
-  float gYMaxPos[EXTRUDERS] = {Y0_MAX_POS, Y1_MAX_POS};
-  float gYMinPos[EXTRUDERS] = {Y0_MIN_POS, Y1_MIN_POS};
+  float gYMaxPos[EXTRUDERS] = {Y0_MAX_POS, Y1_MAX_POS, Y2_MAX_POS, Y3_MAX_POS};
+  float gYMinPos[EXTRUDERS] = {Y0_MIN_POS, Y1_MIN_POS, Y2_MIN_POS, Y3_MIN_POS};
 #endif // DUAL_Y_DRIVE
 
 #ifdef C_COMPENSATION
@@ -729,24 +729,36 @@ XYZ_CONSTS_FROM_CONFIG(float, home_retract_mm, HOME_RETRACT_MM);
   #ifndef DUAL_X_DRIVE
   #  define X0_HOME_POS X_HOME_POS
   #  define X1_HOME_POS X_HOME_POS
+  #  define X2_HOME_POS X_HOME_POS
+  #  define X3_HOME_POS X_HOME_POS
   #  define X0_HOME_DIR X_HOME_DIR
   #  define X1_HOME_DIR X_HOME_DIR
+  #  define X2_HOME_DIR X_HOME_DIR
+  #  define X3_HOME_DIR X_HOME_DIR
   #endif // DUAL_X_DRIVE
   #ifndef DUAL_Y_DRIVE
   #  define Y0_HOME_POS Y_HOME_POS
   #  define Y1_HOME_POS Y_HOME_POS
+  #  define Y2_HOME_POS Y_HOME_POS
+  #  define Y3_HOME_POS Y_HOME_POS
   #  define Y0_HOME_DIR Y_HOME_DIR
   #  define Y1_HOME_DIR Y_HOME_DIR
+  #  define Y2_HOME_DIR Y_HOME_DIR
+  #  define Y3_HOME_DIR Y_HOME_DIR
   #endif // DUAL_Y_DRIVE
   const float base_home_pos_P[EXTRUDERS][3] PROGMEM = {
                { X0_HOME_POS, Y0_HOME_POS, Z_HOME_POS },
-               { X1_HOME_POS, Y1_HOME_POS, Z_HOME_POS }		
+               { X1_HOME_POS, Y1_HOME_POS, Z_HOME_POS },
+               { X2_HOME_POS, Y2_HOME_POS, Z_HOME_POS },
+               { X3_HOME_POS, Y3_HOME_POS, Z_HOME_POS }
   };
   static inline float base_home_pos(int axis)
                { return pgm_read_any(&base_home_pos_P[active_extruder][axis]); }
   const signed char home_dir_P[EXTRUDERS][3] PROGMEM = {
                { X0_HOME_DIR, Y0_HOME_DIR, Z_HOME_DIR },
-               { X1_HOME_DIR, Y1_HOME_DIR, Z_HOME_DIR }
+               { X1_HOME_DIR, Y1_HOME_DIR, Z_HOME_DIR },
+               { X2_HOME_DIR, Y2_HOME_DIR, Z_HOME_DIR },
+               { X3_HOME_DIR, Y3_HOME_DIR, Z_HOME_DIR }
   };
   static inline signed char home_dir(int axis)
                { return pgm_read_any(&home_dir_P[active_extruder][axis]); }
@@ -776,6 +788,10 @@ static bool homeaxis_do(int axis) {
       return ((Y0_MIN_PIN > -1 && home_dir(Y_AXIS) < 0) || (Y0_MAX_PIN > -1 && home_dir(Y_AXIS) > 0));
     else if (active_extruder == 1)
       return ((Y1_MIN_PIN > -1 && home_dir(Y_AXIS) < 0) || (Y1_MAX_PIN > -1 && home_dir(Y_AXIS) > 0));
+    else if (active_extruder == 2)
+      return ((Y2_MIN_PIN > -1 && home_dir(Y_AXIS) < 0) || (Y2_MAX_PIN > -1 && home_dir(Y_AXIS) > 0));
+    else if (active_extruder == 3)
+      return ((Y3_MIN_PIN > -1 && home_dir(Y_AXIS) < 0) || (Y3_MAX_PIN > -1 && home_dir(Y_AXIS) > 0));
     #else
     return ((Y_MIN_PIN > -1 && home_dir(Y_AXIS) < 0) || (Y_MAX_PIN > -1 && home_dir(Y_AXIS) > 0));
     #endif
@@ -1551,6 +1567,7 @@ void process_commands()
           disable_e0();
           disable_e1();
           disable_e2();
+          disable_e3();
           finishAndDisableSteppers();
         }
         else
@@ -1564,7 +1581,7 @@ void process_commands()
           #ifndef DUAL_Y_DRIVE
           if(code_seen('Y')) disable_y();
           #else  // DUAL_Y_DRIVE
-          if(code_seen('Y')) { disable_y0(); disable_y1(); }
+          if(code_seen('Y')) { disable_y0(); disable_y1(); disable_y2(); disable_y3(); }
           #endif // DUAL_Y_DRIVE
           if(code_seen('Z')) disable_z();
           #if ((E0_ENABLE_PIN != X_ENABLE_PIN) && (E1_ENABLE_PIN != Y_ENABLE_PIN)) // Only enable on boards that have seperate ENABLE_PINS
@@ -1572,6 +1589,7 @@ void process_commands()
               disable_e0();
               disable_e1();
               disable_e2();
+              disable_e3();
             }
           #endif 
         }
@@ -1679,6 +1697,14 @@ void process_commands()
         SERIAL_PROTOCOLPGM(MSG_Y1_MIN);
         SERIAL_PROTOCOLLN(((READ(Y1_MIN_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
         #endif
+        #if (Y2_MIN_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_Y2_MIN);
+        SERIAL_PROTOCOLLN(((READ(Y2_MIN_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
+        #if (Y3_MIN_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_Y3_MIN);
+        SERIAL_PROTOCOLLN(((READ(Y3_MIN_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
         #if (Y0_MAX_PIN > -1)
         SERIAL_PROTOCOLPGM(MSG_Y0_MAX);
         SERIAL_PROTOCOLLN(((READ(Y0_MAX_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
@@ -1686,6 +1712,14 @@ void process_commands()
         #if (Y1_MAX_PIN > -1)
         SERIAL_PROTOCOLPGM(MSG_Y1_MAX);
         SERIAL_PROTOCOLLN(((READ(Y1_MAX_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
+        #if (Y2_MAX_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_Y2_MAX);
+        SERIAL_PROTOCOLLN(((READ(Y2_MAX_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
+        #endif
+        #if (Y3_MAX_PIN > -1)
+        SERIAL_PROTOCOLPGM(MSG_Y3_MAX);
+        SERIAL_PROTOCOLLN(((READ(Y3_MAX_PIN)^Y_ENDSTOPS_INVERTING)?MSG_ENDSTOP_HIT:MSG_ENDSTOP_OPEN));
         #endif
       #else
         #if (Y_MIN_PIN > -1)
@@ -2297,6 +2331,7 @@ void process_commands()
         disable_e0();
         disable_e1();
         disable_e2();
+        disable_e3();
         delay(100);
         LCD_ALERTMESSAGEPGM(MSG_FILAMENTCHANGE);
         uint8_t cnt=0;
@@ -2751,6 +2786,7 @@ void manage_inactivity()
         disable_e0();
         disable_e1();
         disable_e2();
+        disable_e3();
       }
     }
   }
@@ -2802,11 +2838,14 @@ void kill()
   #else  // DUAL_Y_DRIVE
   disable_y0();
   disable_y1();
+  disable_y2();
+  disable_y3();
   #endif // DUAL_Y_DRIVE
   disable_z();
   disable_e0();
   disable_e1();
   disable_e2();
+  disable_e3();
   
   if(PS_ON_PIN > -1) pinMode(PS_ON_PIN,INPUT);
   SERIAL_ERROR_START;

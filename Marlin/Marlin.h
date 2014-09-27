@@ -143,7 +143,7 @@ void manage_inactivity();
   #define disable_y2() WRITE(Y2_ENABLE_PIN,!Y_ENABLE_ON)
   #define enable_y3()  WRITE(Y3_ENABLE_PIN, Y_ENABLE_ON)
   #define disable_y3() WRITE(Y3_ENABLE_PIN,!Y_ENABLE_ON)
-  #define enable_y()   { enable_y0(); enable_y1(); enable_y3(); enable_y3(); }
+  #define enable_y()   { enable_y0(); enable_y1(); enable_y2(); enable_y3(); }
   #define disable_y()  { disable_y0(); disable_y1(); disable_y2(); disable_y3(); }
 #else
   #define enable_y() /* nothing */ 
